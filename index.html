@@ -83,6 +83,20 @@
       
       <!-- ===================== DASHBOARD TAB ===================== -->
       <section id="page-dashboard" class="page active">
+        <!-- Persistent Permission Alert Banner (shown when Notification Access is disabled) -->
+        <div id="perm-warning-banner" class="perm-warning-banner hidden">
+          <div class="perm-warning-content">
+            <span class="material-icons-round perm-warning-icon">warning</span>
+            <div class="perm-warning-text">
+              <h4>Notification Access Disabled</h4>
+              <p>WhatsApp recovery is inactive. Enable Notification Access to start capturing deleted messages.</p>
+            </div>
+          </div>
+          <button class="btn-perm-banner" id="btn-banner-grant">
+            <span class="material-icons-round">settings</span> Enable Now
+          </button>
+        </div>
+
         <!-- Quick Stats Cards -->
         <div class="stats-grid">
           <div class="stat-card stat-messages" data-stat="messages">
@@ -513,12 +527,18 @@
        ======================================================== -->
   <div id="onboarding-modal" class="onboarding-overlay hidden">
     <div class="onboarding-container">
+      <button class="modal-close-corner" id="btn-onboarding-close" title="Close">
+        <span class="material-icons-round">close</span>
+      </button>
       <div class="onboarding-header">
         <div class="onboarding-shield">
           <span class="material-icons-round">security</span>
         </div>
         <h2>Welcome to WA Recovery Pro</h2>
         <p>Complete this quick 1-minute setup so the app can recover deleted messages and media on your device.</p>
+        <button class="btn-check-perms-top" id="btn-onboarding-refresh">
+          <span class="material-icons-round">refresh</span> Check Status Now
+        </button>
       </div>
 
       <div class="onboarding-steps">

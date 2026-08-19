@@ -2193,3 +2193,89 @@ body {
   justify-content: space-around;
 }
 
+/* ============================================
+   PERSISTENT PERMISSION BANNER & REFRESH BUTTON
+   ============================================ */
+.perm-warning-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(245, 158, 11, 0.12));
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.12);
+  animation: fadeIn 0.3s var(--ease-out);
+}
+.perm-warning-banner.hidden { display: none; }
+.perm-warning-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.perm-warning-icon {
+  font-size: 28px;
+  color: var(--accent-red);
+  flex-shrink: 0;
+  animation: pulse 2s infinite;
+}
+.perm-warning-text h4 {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+.perm-warning-text p {
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+.btn-perm-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: var(--accent-red);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: transform var(--duration-fast);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+}
+.btn-perm-banner:hover {
+  transform: scale(1.04);
+}
+.btn-perm-banner .material-icons-round {
+  font-size: 16px;
+}
+
+.btn-check-perms-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  color: var(--green-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+.btn-check-perms-top:hover {
+  background: var(--green-subtle);
+  border-color: var(--green-primary);
+}
+.btn-check-perms-top .material-icons-round {
+  font-size: 16px;
+}

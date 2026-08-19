@@ -145,9 +145,12 @@ class WARecoveryApp {
 
   async _checkFirstLaunch() {
     const isGranted = await this._checkPermissionsStatus();
-    const completed = localStorage.getItem('wa_onboarding_completed');
-    if (!completed || !isGranted) {
+    // If Notification Access is NOT granted on the system, always show the setup wizard
+    if (!isGranted) {
       this.showOnboarding();
+    } else {
+      const banner = document.getElementById('perm-warning-banner');
+      if (banner) banner.classList.add('hidden');
     }
   }
 
@@ -155,6 +158,32 @@ class WARecoveryApp {
     const modal = document.getElementById('onboarding-modal');
     if (modal) modal.classList.remove('hidden');
     this._checkPermissionsStatus();
+    this._startPermPolling();
+  }
+
+  hideOnboarding() {
+    const modal = document.getElementById('onboarding-modal');
+    if (modal) modal.classList.add('hidden');
+    this._stopPermPolling();
+  }
+
+  _startPermPolling() {
+    this._stopPermPolling();
+    this._permPollTimer = setInterval(async () => {
+      const modal = document.getElementById('onboarding-modal');
+      if (modal && !modal.classList.contains('hidden')) {
+        await this._checkPermissionsStatus(true);
+      } else {
+        this._stopPermPolling();
+      }
+    }, 1200);
+  }
+
+  _stopPermPolling() {
+    if (this._permPollTimer) {
+      clearInterval(this._permPollTimer);
+      this._permPollTimer = null;
+    }
   }
 
   _initOnboarding() {
@@ -162,6 +191,9 @@ class WARecoveryApp {
     const btnStorage = document.getElementById('btn-grant-storage');
     const btnBattery = document.getElementById('btn-grant-battery');
     const btnDone = document.getElementById('btn-onboarding-done');
+    const btnRefresh = document.getElementById('btn-onboarding-refresh');
+    const btnClose = document.getElementById('btn-onboarding-close');
+    const btnBanner = document.getElementById('btn-banner-grant');
 
     if (btnNotif) {
       btnNotif.addEventListener('click', () => this.openNotificationSettings());
@@ -172,6 +204,27 @@ class WARecoveryApp {
     if (btnBattery) {
       btnBattery.addEventListener('click', () => this.openBatterySettings());
     }
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', async () => {
+        showToast('Checking permission status...', 'info', 1000);
+        const granted = await this._checkPermissionsStatus();
+        if (granted) {
+          showToast('✅ Notification Access is Active & Enabled!', 'success', 3000);
+        } else {
+          showToast('⚠️ Notification Access is still disabled in Settings.', 'error', 3000);
+        }
+      });
+    }
+    if (btnClose) {
+      btnClose.addEventListener('click', () => {
+        this.hideOnboarding();
+      });
+    }
+    if (btnBanner) {
+      btnBanner.addEventListener('click', () => {
+        this.openNotificationSettings();
+      });
+    }
     if (btnDone) {
       btnDone.addEventListener('click', async () => {
         const notifGranted = await this._checkPermissionsStatus();
@@ -181,16 +234,22 @@ class WARecoveryApp {
           return;
         }
         localStorage.setItem('wa_onboarding_completed', 'true');
-        const modal = document.getElementById('onboarding-modal');
-        if (modal) modal.classList.add('hidden');
+        this.hideOnboarding();
         showToast('Recovery Service active! Waiting for messages...', 'success');
         this.loadDashboard();
       });
+    }
+
+    // Setting Wizard re-run item
+    const rerunWizard = document.getElementById('setting-onboarding-rerun');
+    if (rerunWizard) {
+      rerunWizard.addEventListener('click', () => this.showOnboarding());
     }
   }
 
   async openNotificationSettings() {
     showToast('Opening Android Notification Settings...', 'info', 2000);
+    this._startPermPolling();
     if (this.bridge) {
       try {
         await this.bridge.openNotificationSettings();
@@ -228,25 +287,34 @@ class WARecoveryApp {
     }
   }
 
-  async _checkPermissionsStatus() {
+  async _checkPermissionsStatus(isPolling = false) {
     if (this.bridge) {
       try {
         const status = await this.bridge.isNotificationAccessEnabled();
+        const banner = document.getElementById('perm-warning-banner');
+        const badgeNls = document.getElementById('badge-nls');
+        const serviceDot = document.querySelector('#service-status .status-dot');
+        const serviceText = document.querySelector('#service-status .status-text');
+
         if (status && status.enabled) {
           this._markPermGranted('notif');
-          const badgeNls = document.getElementById('badge-nls');
+          if (banner) banner.classList.add('hidden');
           if (badgeNls) {
             badgeNls.textContent = 'Running';
             badgeNls.className = 'badge badge-active';
           }
+          if (serviceDot) serviceDot.className = 'status-dot active';
+          if (serviceText) serviceText.textContent = 'Active';
           return true;
         } else {
           this._markPermPending('notif');
-          const badgeNls = document.getElementById('badge-nls');
+          if (banner) banner.classList.remove('hidden');
           if (badgeNls) {
-            badgeNls.textContent = 'Disabled';
+            badgeNls.textContent = 'Setup Needed';
             badgeNls.className = 'badge badge-warning';
           }
+          if (serviceDot) serviceDot.className = 'status-dot';
+          if (serviceText) serviceText.textContent = 'Permission Required';
           return false;
         }
       } catch (e) {
@@ -260,6 +328,7 @@ class WARecoveryApp {
     const badge = document.getElementById(`badge-perm-${type}`);
     const card = document.getElementById(`perm-step-${type}`);
     const btn = document.getElementById(`btn-grant-${type === 'notif' ? 'notification' : type}`);
+    const btnDone = document.getElementById('btn-onboarding-done');
 
     if (badge) {
       badge.textContent = 'Granted';
@@ -267,8 +336,12 @@ class WARecoveryApp {
     }
     if (card) card.classList.add('granted');
     if (btn) {
-      btn.innerHTML = '<span class="material-icons-round">check_circle</span> Enabled on System';
+      btn.innerHTML = '<span class="material-icons-round">check_circle</span> Enabled on Device';
       btn.classList.add('granted');
+    }
+    if (btnDone) {
+      btnDone.innerHTML = '<span class="material-icons-round">verified</span> Start Recovering Messages';
+      btnDone.style.background = 'linear-gradient(135deg, var(--green-primary), var(--green-dark))';
     }
   }
 

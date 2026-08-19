@@ -57,12 +57,20 @@ public class RecoveryBridge extends Plugin {
      */
     @PluginMethod()
     public void isNotificationAccessEnabled(PluginCall call) {
-        String enabledListeners = Settings.Secure.getString(
-                getContext().getContentResolver(),
-                "enabled_notification_listeners"
-        );
-        boolean enabled = enabledListeners != null &&
-                enabledListeners.contains(getContext().getPackageName());
+        boolean enabled = false;
+        try {
+            java.util.Set<String> packages = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(getContext());
+            enabled = packages.contains(getContext().getPackageName());
+        } catch (Exception e) {
+            try {
+                String enabledListeners = Settings.Secure.getString(
+                        getContext().getContentResolver(),
+                        "enabled_notification_listeners"
+                );
+                enabled = enabledListeners != null &&
+                        enabledListeners.contains(getContext().getPackageName());
+            } catch (Exception ignored) {}
+        }
 
         JSObject result = new JSObject();
         result.put("enabled", enabled);
