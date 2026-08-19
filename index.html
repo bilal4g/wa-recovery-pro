@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0a0f1c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="WA Recovery Pro - Recover deleted WhatsApp messages, voice notes, media files and one-time view messages">
+  
+  <title>WA Recovery Pro</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Material Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
+  
+  <!-- App Styles -->
+  <link rel="stylesheet" href="/src/css/app.css">
+</head>
+<body>
+  <!-- Splash Screen -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <div class="splash-icon">
+        <div class="splash-shield">
+          <span class="material-icons-round">security</span>
+        </div>
+        <div class="splash-ring"></div>
+      </div>
+      <h1 class="splash-title">WA Recovery Pro</h1>
+      <p class="splash-subtitle">Message & Media Recovery</p>
+      <div class="splash-loader">
+        <div class="splash-loader-bar"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main App -->
+  <div id="app" class="app hidden">
+    <!-- Status Bar Spacer -->
+    <div class="status-bar-spacer"></div>
+
+    <!-- Header -->
+    <header id="app-header" class="app-header">
+      <div class="header-left">
+        <h1 class="header-title">
+          <span class="header-icon">
+            <span class="material-icons-round">security</span>
+          </span>
+          WA Recovery
+        </h1>
+      </div>
+      <div class="header-right">
+        <button class="header-btn" id="btn-search" aria-label="Search">
+          <span class="material-icons-round">search</span>
+        </button>
+        <button class="header-btn" id="btn-check-updates" aria-label="Check Updates" title="Check for Updates">
+          <span class="material-icons-round">system_update</span>
+        </button>
+        <button class="header-btn" id="btn-menu" aria-label="Menu">
+          <span class="material-icons-round">more_vert</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Search Bar (collapsible) -->
+    <div id="search-bar" class="search-bar hidden">
+      <div class="search-input-wrap">
+        <span class="material-icons-round search-icon">search</span>
+        <input type="text" id="search-input" class="search-input" placeholder="Search messages, contacts, media...">
+        <button class="search-close" id="search-close">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Page Container -->
+    <main id="page-container" class="page-container">
+      
+      <!-- ===================== DASHBOARD TAB ===================== -->
+      <section id="page-dashboard" class="page active">
+        <!-- Quick Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card stat-messages" data-stat="messages">
+            <div class="stat-icon-wrap">
+              <span class="material-icons-round">chat</span>
+            </div>
+            <div class="stat-info">
+              <span class="stat-number" id="stat-messages">0</span>
+              <span class="stat-label">Messages Saved</span>
+            </div>
+            <div class="stat-glow"></div>
+          </div>
+          <div class="stat-card stat-deleted" data-stat="deleted">
+            <div class="stat-icon-wrap">
+              <span class="material-icons-round">restore</span>
+            </div>
+            <div class="stat-info">
+              <span class="stat-number" id="stat-deleted">0</span>
+              <span class="stat-label">Deleted Recovered</span>
+            </div>
+            <div class="stat-glow"></div>
+          </div>
+          <div class="stat-card stat-media" data-stat="media">
+            <div class="stat-icon-wrap">
+              <span class="material-icons-round">perm_media</span>
+            </div>
+            <div class="stat-info">
+              <span class="stat-number" id="stat-media">0</span>
+              <span class="stat-label">Media Files</span>
+            </div>
+            <div class="stat-glow"></div>
+          </div>
+          <div class="stat-card stat-voice" data-stat="voice">
+            <div class="stat-icon-wrap">
+              <span class="material-icons-round">mic</span>
+            </div>
+            <div class="stat-info">
+              <span class="stat-number" id="stat-voice">0</span>
+              <span class="stat-label">Voice Notes</span>
+            </div>
+            <div class="stat-glow"></div>
+          </div>
+        </div>
+
+        <!-- Service Status -->
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">Recovery Service</h2>
+            <div class="service-status" id="service-status">
+              <span class="status-dot active"></span>
+              <span class="status-text">Active</span>
+            </div>
+          </div>
+          <div class="service-info">
+            <div class="service-row">
+              <span class="material-icons-round">notifications_active</span>
+              <span>Notification Listener</span>
+              <span class="badge badge-active" id="badge-nls">Running</span>
+            </div>
+            <div class="service-row">
+              <span class="material-icons-round">folder_open</span>
+              <span>Media Scanner</span>
+              <span class="badge badge-active">Running</span>
+            </div>
+            <div class="service-row">
+              <span class="material-icons-round">visibility</span>
+              <span>View-Once Capture</span>
+              <span class="badge badge-active">Running</span>
+            </div>
+            <div class="service-row">
+              <span class="material-icons-round">storage</span>
+              <span>Storage Used</span>
+              <span class="badge badge-info" id="storage-used">0 MB</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="section-card">
+          <div class="section-header">
+            <h2 class="section-title">Recent Activity</h2>
+            <button class="btn-text" id="btn-view-all-messages">View All</button>
+          </div>
+          <div id="recent-messages" class="message-list">
+            <!-- Populated by JS -->
+          </div>
+          <div id="empty-recent" class="empty-state">
+            <span class="material-icons-round empty-icon">hourglass_empty</span>
+            <p class="empty-title">Waiting for messages</p>
+            <p class="empty-desc">Messages will appear here once the recovery service captures them. Make sure Notification Access is enabled.</p>
+            <button class="btn-primary" id="btn-enable-service">
+              <span class="material-icons-round">settings</span>
+              Grant Permissions Setup
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== MESSAGES TAB ===================== -->
+      <section id="page-messages" class="page">
+        <!-- Filter Chips -->
+        <div class="filter-chips">
+          <button class="chip active" data-filter="all">All</button>
+          <button class="chip" data-filter="deleted">
+            <span class="material-icons-round">delete</span> Deleted
+          </button>
+          <button class="chip" data-filter="text">
+            <span class="material-icons-round">chat</span> Text
+          </button>
+          <button class="chip" data-filter="media">
+            <span class="material-icons-round">image</span> Media
+          </button>
+          <button class="chip" data-filter="viewonce">
+            <span class="material-icons-round">visibility</span> View Once
+          </button>
+        </div>
+
+        <!-- Chat List -->
+        <div id="chat-list" class="chat-list">
+          <!-- Populated by JS -->
+        </div>
+        <div id="empty-messages" class="empty-state hidden">
+          <span class="material-icons-round empty-icon">forum</span>
+          <p class="empty-title">No messages yet</p>
+          <p class="empty-desc">Recovered messages will appear here</p>
+        </div>
+
+        <!-- Chat Detail View (slides in) -->
+        <div id="chat-detail" class="chat-detail hidden">
+          <div class="chat-detail-header">
+            <button class="btn-back" id="btn-chat-back">
+              <span class="material-icons-round">arrow_back</span>
+            </button>
+            <div class="chat-detail-avatar" id="chat-detail-avatar"></div>
+            <div class="chat-detail-info">
+              <h3 id="chat-detail-name"></h3>
+              <p id="chat-detail-status"></p>
+            </div>
+            <button class="header-btn" id="btn-chat-export">
+              <span class="material-icons-round">file_download</span>
+            </button>
+          </div>
+          <div id="chat-detail-messages" class="chat-detail-messages">
+            <!-- Populated by JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== MEDIA TAB ===================== -->
+      <section id="page-media" class="page">
+        <!-- Media Sub-tabs -->
+        <div class="sub-tabs">
+          <button class="sub-tab active" data-media="photos">
+            <span class="material-icons-round">photo</span>
+            Photos
+          </button>
+          <button class="sub-tab" data-media="videos">
+            <span class="material-icons-round">videocam</span>
+            Videos
+          </button>
+          <button class="sub-tab" data-media="docs">
+            <span class="material-icons-round">description</span>
+            Docs
+          </button>
+          <button class="sub-tab" data-media="stickers">
+            <span class="material-icons-round">emoji_emotions</span>
+            Stickers
+          </button>
+        </div>
+
+        <!-- Media Grid -->
+        <div id="media-grid" class="media-grid">
+          <!-- Populated by JS -->
+        </div>
+        <div id="empty-media" class="empty-state">
+          <span class="material-icons-round empty-icon">perm_media</span>
+          <p class="empty-title">No media recovered yet</p>
+          <p class="empty-desc">Photos, videos, and documents will appear here</p>
+        </div>
+
+        <!-- Media Lightbox -->
+        <div id="media-lightbox" class="lightbox hidden">
+          <div class="lightbox-header">
+            <button class="lightbox-btn" id="lightbox-close">
+              <span class="material-icons-round">close</span>
+            </button>
+            <div class="lightbox-info">
+              <span id="lightbox-sender"></span>
+              <span id="lightbox-date"></span>
+            </div>
+            <button class="lightbox-btn" id="lightbox-download">
+              <span class="material-icons-round">file_download</span>
+            </button>
+          </div>
+          <div class="lightbox-content">
+            <img id="lightbox-image" class="lightbox-image" src="" alt="">
+            <video id="lightbox-video" class="lightbox-video" controls></video>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== VOICE TAB ===================== -->
+      <section id="page-voice" class="page">
+        <div class="section-card">
+          <div class="section-header">
+            <div>
+              <h2 class="section-title">Voice Messages</h2>
+              <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">Playback with multi-speed, AI transcription & sharing</p>
+            </div>
+            <span class="badge badge-info" id="voice-count">0 notes</span>
+          </div>
+        </div>
+
+        <div id="voice-list" class="voice-list">
+          <!-- Populated by JS -->
+        </div>
+        <div id="empty-voice" class="empty-state">
+          <span class="material-icons-round empty-icon">mic_off</span>
+          <p class="empty-title">No voice notes yet</p>
+          <p class="empty-desc">Recovered voice messages will appear here with a built-in player</p>
+        </div>
+      </section>
+
+      <!-- ===================== SETTINGS TAB ===================== -->
+      <section id="page-settings" class="page">
+        <div class="settings-profile">
+          <div class="settings-avatar">
+            <span class="material-icons-round">shield</span>
+          </div>
+          <h2>WA Recovery Pro</h2>
+          <p class="settings-version">Version 1.0.0</p>
+        </div>
+
+        <!-- Updates Section -->
+        <div class="settings-group">
+          <h3 class="settings-group-title">App Updates & Maintenance</h3>
+          <div class="settings-item clickable" id="setting-check-updates">
+            <div class="settings-item-left">
+              <span class="material-icons-round" style="color:var(--green-primary);">system_update_alt</span>
+              <div>
+                <p class="settings-item-title">Check for Updates</p>
+                <p class="settings-item-desc">Instant In-App OTA Update or APK</p>
+              </div>
+            </div>
+            <span class="badge badge-active">v1.0.0</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <span class="material-icons-round">bolt</span>
+              <div>
+                <p class="settings-item-title">Instant Live Patching</p>
+                <p class="settings-item-desc">Apply updates without downloading APK again</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-live-patch" checked>
+              <label for="toggle-live-patch"></label>
+            </div>
+          </div>
+          <div class="settings-item clickable" id="setting-onboarding-rerun">
+            <div class="settings-item-left">
+              <span class="material-icons-round">checklist</span>
+              <div>
+                <p class="settings-item-title">Permissions Setup Wizard</p>
+                <p class="settings-item-desc">Re-check Notification, Storage & Battery</p>
+              </div>
+            </div>
+            <span class="material-icons-round settings-arrow">chevron_right</span>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">Recovery Services</h3>
+          <div class="settings-item" id="setting-notification">
+            <div class="settings-item-left">
+              <span class="material-icons-round">notifications</span>
+              <div>
+                <p class="settings-item-title">Notification Access</p>
+                <p class="settings-item-desc">Required to capture messages</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-notification" checked>
+              <label for="toggle-notification"></label>
+            </div>
+          </div>
+          <div class="settings-item" id="setting-media-scan">
+            <div class="settings-item-left">
+              <span class="material-icons-round">folder_open</span>
+              <div>
+                <p class="settings-item-title">Media Scanner</p>
+                <p class="settings-item-desc">Auto-backup media files</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-media-scan" checked>
+              <label for="toggle-media-scan"></label>
+            </div>
+          </div>
+          <div class="settings-item" id="setting-viewonce">
+            <div class="settings-item-left">
+              <span class="material-icons-round">visibility</span>
+              <div>
+                <p class="settings-item-title">View-Once Capture</p>
+                <p class="settings-item-desc">Save one-time view messages</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-viewonce" checked>
+              <label for="toggle-viewonce"></label>
+            </div>
+          </div>
+          <div class="settings-item" id="setting-autostart">
+            <div class="settings-item-left">
+              <span class="material-icons-round">restart_alt</span>
+              <div>
+                <p class="settings-item-title">Auto-Start on Boot</p>
+                <p class="settings-item-desc">Start recovery service automatically</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-autostart" checked>
+              <label for="toggle-autostart"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">Data Management</h3>
+          <div class="settings-item clickable" id="setting-export">
+            <div class="settings-item-left">
+              <span class="material-icons-round">file_download</span>
+              <div>
+                <p class="settings-item-title">Export All Data</p>
+                <p class="settings-item-desc">Save messages & media as backup</p>
+              </div>
+            </div>
+            <span class="material-icons-round settings-arrow">chevron_right</span>
+          </div>
+          <div class="settings-item clickable" id="setting-clear">
+            <div class="settings-item-left">
+              <span class="material-icons-round">delete_sweep</span>
+              <div>
+                <p class="settings-item-title">Clear All Data</p>
+                <p class="settings-item-desc">Remove all recovered messages & media</p>
+              </div>
+            </div>
+            <span class="material-icons-round settings-arrow">chevron_right</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <span class="material-icons-round">storage</span>
+              <div>
+                <p class="settings-item-title">Storage Usage</p>
+                <p class="settings-item-desc" id="settings-storage">Calculating...</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-group">
+          <h3 class="settings-group-title">About & Source</h3>
+          <div class="settings-item clickable" onclick="window.open('https://github.com/bilal4g/wa-recovery-pro', '_blank')">
+            <div class="settings-item-left">
+              <span class="material-icons-round">code</span>
+              <div>
+                <p class="settings-item-title">GitHub Repository</p>
+                <p class="settings-item-desc">Source code, releases & issues</p>
+              </div>
+            </div>
+            <span class="material-icons-round settings-arrow">open_in_new</span>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <span class="material-icons-round">info</span>
+              <div>
+                <p class="settings-item-title">App Version</p>
+                <p class="settings-item-desc">1.0.0 (Build 1)</p>
+              </div>
+            </div>
+          </div>
+          <div class="settings-item">
+            <div class="settings-item-left">
+              <span class="material-icons-round">gavel</span>
+              <div>
+                <p class="settings-item-title">Legal</p>
+                <p class="settings-item-desc">For personal use only. Respects privacy laws.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav" class="bottom-nav">
+      <button class="nav-item active" data-page="dashboard">
+        <span class="material-icons-round">dashboard</span>
+        <span class="nav-label">Dashboard</span>
+        <span class="nav-indicator"></span>
+      </button>
+      <button class="nav-item" data-page="messages">
+        <span class="material-icons-round">chat</span>
+        <span class="nav-label">Messages</span>
+        <span class="nav-badge hidden" id="nav-badge-messages">0</span>
+        <span class="nav-indicator"></span>
+      </button>
+      <button class="nav-item" data-page="media">
+        <span class="material-icons-round">perm_media</span>
+        <span class="nav-label">Media</span>
+        <span class="nav-indicator"></span>
+      </button>
+      <button class="nav-item" data-page="voice">
+        <span class="material-icons-round">mic</span>
+        <span class="nav-label">Voice</span>
+        <span class="nav-indicator"></span>
+      </button>
+      <button class="nav-item" data-page="settings">
+        <span class="material-icons-round">settings</span>
+        <span class="nav-label">Settings</span>
+        <span class="nav-indicator"></span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ========================================================
+       FIRST-LAUNCH PERMISSION ONBOARDING WIZARD MODAL
+       ======================================================== -->
+  <div id="onboarding-modal" class="onboarding-overlay hidden">
+    <div class="onboarding-container">
+      <div class="onboarding-header">
+        <div class="onboarding-shield">
+          <span class="material-icons-round">security</span>
+        </div>
+        <h2>Welcome to WA Recovery Pro</h2>
+        <p>Complete this quick 1-minute setup so the app can recover deleted messages and media on your device.</p>
+      </div>
+
+      <div class="onboarding-steps">
+        <!-- Step 1: Notification Access (Mandatory) -->
+        <div class="permission-card" id="perm-step-notification">
+          <div class="perm-card-icon notif">
+            <span class="material-icons-round">notifications_active</span>
+          </div>
+          <div class="perm-card-content">
+            <div class="perm-card-title-row">
+              <h3>1. Notification Access</h3>
+              <span class="perm-status-badge pending" id="badge-perm-notif">Required</span>
+            </div>
+            <p>Captures WhatsApp messages before senders delete them.</p>
+            <button class="btn-perm-action" id="btn-grant-notification">
+              <span class="material-icons-round">lock_open</span>
+              Allow Notification Access
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 2: Storage Access (Mandatory) -->
+        <div class="permission-card" id="perm-step-storage">
+          <div class="perm-card-icon storage">
+            <span class="material-icons-round">folder_open</span>
+          </div>
+          <div class="perm-card-content">
+            <div class="perm-card-title-row">
+              <h3>2. Storage & Media Access</h3>
+              <span class="perm-status-badge pending" id="badge-perm-storage">Required</span>
+            </div>
+            <p>Backs up photos, voice notes, videos, and view-once media.</p>
+            <button class="btn-perm-action" id="btn-grant-storage">
+              <span class="material-icons-round">folder</span>
+              Allow Storage Access
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Battery Optimization Ignore (Recommended) -->
+        <div class="permission-card" id="perm-step-battery">
+          <div class="perm-card-icon battery">
+            <span class="material-icons-round">battery_saver</span>
+          </div>
+          <div class="perm-card-content">
+            <div class="perm-card-title-row">
+              <h3>3. Background Auto-Recovery</h3>
+              <span class="perm-status-badge optional" id="badge-perm-battery">Recommended</span>
+            </div>
+            <p>Prevents Android from stopping message capture in the background.</p>
+            <button class="btn-perm-action secondary" id="btn-grant-battery">
+              <span class="material-icons-round">power_settings_new</span>
+              Disable Battery Limits
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="onboarding-footer">
+        <button class="btn-primary full-width" id="btn-onboarding-done">
+          <span class="material-icons-round">check</span>
+          Done, Let's Start!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       VOICE OPTIONS & SHARING BOTTOM SHEET MODAL
+       ======================================================== -->
+  <div id="voice-options-overlay" class="bottom-sheet-overlay hidden">
+    <div class="bottom-sheet-card">
+      <div class="bottom-sheet-drag"></div>
+      <div class="bottom-sheet-header">
+        <div class="voice-header-preview">
+          <div class="voice-avatar" id="voice-options-avatar">U</div>
+          <div>
+            <h3 id="voice-options-sender">Contact Name</h3>
+            <p id="voice-options-meta">0:14 · Today at 5:30 PM</p>
+          </div>
+        </div>
+        <button class="header-btn" id="voice-options-close">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+
+      <div class="voice-sheet-content">
+        <!-- Speed Controls -->
+        <div class="sheet-section">
+          <label class="sheet-section-label">Playback Speed</label>
+          <div class="speed-options-row">
+            <button class="speed-option-btn active" data-speed="1.0">1.0x</button>
+            <button class="speed-option-btn" data-speed="1.25">1.25x</button>
+            <button class="speed-option-btn" data-speed="1.5">1.5x</button>
+            <button class="speed-option-btn" data-speed="2.0">2.0x</button>
+          </div>
+        </div>
+
+        <!-- Voice Changer Effects -->
+        <div class="sheet-section">
+          <label class="sheet-section-label">Voice Changer Effects</label>
+          <div class="effect-options-row">
+            <button class="effect-option-btn active" data-effect="normal">🎵 Normal</button>
+            <button class="effect-option-btn" data-effect="chipmunk">🐿️ Chipmunk</button>
+            <button class="effect-option-btn" data-effect="deep">🦁 Deep Voice</button>
+            <button class="effect-option-btn" data-effect="robot">🤖 Robot</button>
+          </div>
+        </div>
+
+        <!-- AI Transcription Box -->
+        <div class="sheet-section">
+          <div class="sheet-section-header">
+            <label class="sheet-section-label">AI Speech-to-Text Transcription</label>
+            <button class="btn-text-sm" id="voice-btn-transcribe">
+              <span class="material-icons-round">auto_awesome</span> Transcribe
+            </button>
+          </div>
+          <div id="voice-transcription-box" class="transcription-box hidden">
+            <p id="voice-transcription-text" class="transcription-text"></p>
+            <div class="transcription-actions">
+              <button class="transcription-chip" id="voice-btn-copy-transcript">
+                <span class="material-icons-round">content_copy</span> Copy Text
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Share & Export Actions -->
+        <div class="sheet-section">
+          <label class="sheet-section-label">Share & Export</label>
+          <div class="share-grid">
+            <button class="share-grid-btn" id="voice-btn-share-wa">
+              <span class="material-icons-round icon-wa">chat</span>
+              <span>Share to WhatsApp</span>
+            </button>
+            <button class="share-grid-btn" id="voice-btn-share-system">
+              <span class="material-icons-round">share</span>
+              <span>System Share</span>
+            </button>
+            <button class="share-grid-btn" id="voice-btn-export">
+              <span class="material-icons-round">file_download</span>
+              <span>Save Audio File</span>
+            </button>
+            <button class="share-grid-btn" id="voice-btn-save-ringtone">
+              <span class="material-icons-round">music_note</span>
+              <span>Save as Ringtone</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       IN-APP AUTO-UPDATE POPUP MODAL
+       ======================================================== -->
+  <div id="update-modal-overlay" class="modal-overlay hidden">
+    <div class="update-card">
+      <div class="update-badge" id="update-version-badge">v1.1.0</div>
+      <div class="update-icon-glow">
+        <span class="material-icons-round">rocket_launch</span>
+      </div>
+      <h3 id="update-title">New Update Available!</h3>
+      <p class="update-subtitle">Instant Live Update Ready (No APK Re-download Needed)</p>
+
+      <div class="update-changelog">
+        <h4>What's New:</h4>
+        <ul id="update-changelog-list">
+          <!-- Populated by JS -->
+        </ul>
+      </div>
+
+      <!-- Update Progress Bar (hidden by default) -->
+      <div id="update-progress-container" class="update-progress-wrap hidden">
+        <p id="update-progress-status" class="update-progress-text">Applying instant OTA update...</p>
+        <div class="update-progress-bar-bg">
+          <div id="update-progress-bar" class="update-progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div id="update-modal-actions" class="update-actions">
+        <button class="btn-primary full-width" id="update-btn-instant">
+          <span class="material-icons-round">bolt</span>
+          Update Now (Instant Live Patch · <span id="update-patch-size">240 KB</span>)
+        </button>
+        <div class="update-secondary-row">
+          <button class="btn-text" id="update-btn-full">Full APK Download</button>
+          <button class="btn-text" id="update-modal-later">Remind Later</button>
+        </div>
+      </div>
+      <button class="modal-close-corner" id="update-modal-close">
+        <span class="material-icons-round">close</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Confirmation Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-icon" id="modal-icon">
+        <span class="material-icons-round">warning</span>
+      </div>
+      <h3 id="modal-title">Confirm Action</h3>
+      <p id="modal-message">Are you sure?</p>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="modal-cancel">Cancel</button>
+        <button class="btn-primary" id="modal-confirm">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script type="module" src="/src/js/database.js"></script>
+  <script type="module" src="/src/js/ui-components.js"></script>
+  <script type="module" src="/src/js/media-manager.js"></script>
+  <script type="module" src="/src/js/voice-options.js"></script>
+  <script type="module" src="/src/js/auto-updater.js"></script>
+  <script type="module" src="/src/js/app.js"></script>
+</body>
+</html>

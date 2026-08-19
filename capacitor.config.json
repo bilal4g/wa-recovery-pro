@@ -1,0 +1,25 @@
+{
+  "appId": "com.warecovery.pro",
+  "appName": "WA Recovery Pro",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#0a0f1c"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "backgroundColor": "#0a0f1c",
+      "showSpinner": true,
+      "spinnerColor": "#25D366"
+    },
+    "StatusBar": {
+      "backgroundColor": "#0a0f1c",
+      "style": "DARK"
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_notification",
+      "iconColor": "#25D366"
+    }
+  }
+}
