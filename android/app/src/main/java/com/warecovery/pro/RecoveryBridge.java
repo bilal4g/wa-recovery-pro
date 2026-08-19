@@ -78,6 +78,106 @@ public class RecoveryBridge extends Plugin {
     }
 
     /**
+     * Check if storage permission or manage external storage is granted.
+     */
+    @PluginMethod()
+    public void isStoragePermissionGranted(PluginCall call) {
+        boolean granted = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                granted = android.os.Environment.isExternalStorageManager();
+            }
+            if (!granted) {
+                boolean read = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                boolean write = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                granted = read || write;
+            }
+            if (!granted && android.os.Build.VERSION.SDK_INT >= 33) {
+                boolean images = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), "android.permission.READ_MEDIA_IMAGES") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                boolean audio = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), "android.permission.READ_MEDIA_AUDIO") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                boolean video = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), "android.permission.READ_MEDIA_VIDEO") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                granted = images || audio || video;
+            }
+        } catch (Exception e) {
+            granted = false;
+        }
+
+        JSObject result = new JSObject();
+        result.put("granted", granted);
+        call.resolve(result);
+    }
+
+    /**
+     * Check if battery optimizations are ignored.
+     */
+    @PluginMethod()
+    public void isBatteryOptimizationIgnored(PluginCall call) {
+        boolean ignored = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+                if (pm != null) {
+                    ignored = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+                }
+            }
+        } catch (Exception e) {
+            ignored = false;
+        }
+
+        JSObject result = new JSObject();
+        result.put("ignored", ignored);
+        call.resolve(result);
+    }
+
+    /**
+     * Get status of all 3 permissions in one call.
+     */
+    @PluginMethod()
+    public void getAllPermissionsStatus(PluginCall call) {
+        boolean notif = false;
+        try {
+            java.util.Set<String> packages = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(getContext());
+            notif = packages.contains(getContext().getPackageName());
+        } catch (Exception ignored) {}
+
+        boolean storage = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                storage = android.os.Environment.isExternalStorageManager();
+            }
+            if (!storage) {
+                storage = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            }
+            if (!storage && android.os.Build.VERSION.SDK_INT >= 33) {
+                storage = androidx.core.content.ContextCompat.checkSelfPermission(
+                        getContext(), "android.permission.READ_MEDIA_IMAGES") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            }
+        } catch (Exception ignored) {}
+
+        boolean battery = false;
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+                if (pm != null) {
+                    battery = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+                }
+            }
+        } catch (Exception ignored) {}
+
+        JSObject result = new JSObject();
+        result.put("notification", notif);
+        result.put("storage", storage);
+        result.put("battery", battery);
+        call.resolve(result);
+    }
+
+    /**
      * Open the system notification access settings page.
      */
     @PluginMethod()

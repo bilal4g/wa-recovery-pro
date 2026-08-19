@@ -290,14 +290,54 @@ class WARecoveryApp {
   async _checkPermissionsStatus(isPolling = false) {
     if (this.bridge) {
       try {
-        const status = await this.bridge.isNotificationAccessEnabled();
+        let notifEnabled = false;
+        let storageGranted = false;
+        let batteryIgnored = false;
+
+        try {
+          const all = await this.bridge.getAllPermissionsStatus();
+          if (all) {
+            notifEnabled = !!all.notification;
+            storageGranted = !!all.storage;
+            batteryIgnored = !!all.battery;
+          }
+        } catch (e) {
+          const status = await this.bridge.isNotificationAccessEnabled();
+          notifEnabled = !!(status && status.enabled);
+          try {
+            const st = await this.bridge.isStoragePermissionGranted();
+            storageGranted = !!(st && st.granted);
+          } catch (ignored) {}
+        }
+
+        // Notification Access UI Update
+        if (notifEnabled) {
+          this._markPermGranted('notif');
+        } else {
+          this._markPermPending('notif');
+        }
+
+        // Storage Access UI Update
+        if (storageGranted) {
+          this._markPermGranted('storage');
+        } else {
+          this._markPermPending('storage');
+        }
+
+        // Battery Optimization UI Update
+        if (batteryIgnored) {
+          this._markPermGranted('battery');
+        } else {
+          this._markPermPending('battery');
+        }
+
+        // Dashboard Badges & Banner
         const banner = document.getElementById('perm-warning-banner');
         const badgeNls = document.getElementById('badge-nls');
         const serviceDot = document.querySelector('#service-status .status-dot');
         const serviceText = document.querySelector('#service-status .status-text');
 
-        if (status && status.enabled) {
-          this._markPermGranted('notif');
+        if (notifEnabled) {
           if (banner) banner.classList.add('hidden');
           if (badgeNls) {
             badgeNls.textContent = 'Running';
@@ -307,7 +347,6 @@ class WARecoveryApp {
           if (serviceText) serviceText.textContent = 'Active';
           return true;
         } else {
-          this._markPermPending('notif');
           if (banner) banner.classList.remove('hidden');
           if (badgeNls) {
             badgeNls.textContent = 'Setup Needed';
@@ -339,7 +378,7 @@ class WARecoveryApp {
       btn.innerHTML = '<span class="material-icons-round">check_circle</span> Enabled on Device';
       btn.classList.add('granted');
     }
-    if (btnDone) {
+    if (type === 'notif' && btnDone) {
       btnDone.innerHTML = '<span class="material-icons-round">verified</span> Start Recovering Messages';
       btnDone.style.background = 'linear-gradient(135deg, var(--green-primary), var(--green-dark))';
     }
@@ -351,12 +390,27 @@ class WARecoveryApp {
     const btn = document.getElementById(`btn-grant-${type === 'notif' ? 'notification' : type}`);
 
     if (badge) {
-      badge.textContent = 'Required';
-      badge.className = 'perm-status-badge pending';
+      if (type === 'battery') {
+        badge.textContent = 'Recommended';
+        badge.className = 'perm-status-badge optional';
+      } else {
+        badge.textContent = 'Required';
+        badge.className = 'perm-status-badge pending';
+      }
     }
     if (card) card.classList.remove('granted');
     if (btn) {
-      btn.innerHTML = '<span class="material-icons-round">lock_open</span> Allow Notification Access';
+      const labels = {
+        notif: 'Allow Notification Access',
+        storage: 'Allow Storage Access',
+        battery: 'Disable Battery Limits'
+      };
+      const icons = {
+        notif: 'lock_open',
+        storage: 'folder',
+        battery: 'power_settings_new'
+      };
+      btn.innerHTML = `<span class="material-icons-round">${icons[type] || 'settings'}</span> ${labels[type] || 'Grant Permission'}`;
       btn.classList.remove('granted');
     }
   }
