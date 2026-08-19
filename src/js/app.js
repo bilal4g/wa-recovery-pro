@@ -1,7 +1,7 @@
 /**
- * WA Recovery Pro — Main Application Controller
- * Handles navigation, data flow, demo data seeding, first-launch onboarding,
- * voice player speed/options, in-app auto-updater, and Capacitor bridge.
+ * WA Recovery Pro — Real Message & Media Recovery Controller
+ * Fully wired to native Android NotificationListenerService & SQLite database.
+ * No dummy data. Real WhatsApp notification recovery.
  */
 
 import db from './database.js';
@@ -22,23 +22,19 @@ class WARecoveryApp {
     this.currentChat = null;
     this.audioPlayers = {};
     this.isNative = false;
-    this.voiceSpeeds = {}; // map of voiceId -> speed
+    this.voiceSpeeds = {};
+    this.bridge = null;
   }
 
   async init() {
-    // Check if running in Capacitor native context
-    this.isNative = !!window.Capacitor?.isNativePlatform();
+    // Check if running on Android native device
+    this.isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform());
+    this.bridge = window.Capacitor?.Plugins?.RecoveryBridge;
     
-    // Initialize database
+    // Initialize local database
     await db.ready();
 
-    // Seed demo data if database is empty
-    const stats = await db.getStats();
-    if (stats.totalMessages === 0) {
-      await this._seedDemoData();
-    }
-
-    // Initialize UI
+    // Setup UI components
     this._initNavigation();
     this._initSearch();
     this._initFilters();
@@ -48,46 +44,109 @@ class WARecoveryApp {
     this._initOnboarding();
     this._initHeaderButtons();
 
-    // Load initial data
-    await this.loadDashboard();
+    // Listen for native events (new WhatsApp messages / deleted messages)
+    if (this.bridge) {
+      try {
+        this.bridge.addListener('newMessage', (event) => {
+          console.log('📬 Native new WhatsApp message received:', event);
+          this.syncNativeData();
+        });
+        this.bridge.addListener('messageDeleted', (event) => {
+          console.log('🗑️ Native WhatsApp message deleted by sender:', event);
+          showToast(`Recovered deleted message from ${event.data || 'sender'}!`, 'info', 4000);
+          this.syncNativeData();
+        });
+      } catch (e) {
+        console.log('Bridge listener error:', e);
+      }
+    }
 
-    // Hide splash, show app
+    // Load initial real data
+    await this.syncNativeData();
+
+    // Hide splash screen
     setTimeout(() => {
       const splash = document.getElementById('splash-screen');
       const app = document.getElementById('app');
-      splash.classList.add('fade-out');
-      app.classList.remove('hidden');
-      setTimeout(() => splash.remove(), 600);
+      if (splash) {
+        splash.classList.add('fade-out');
+        setTimeout(() => splash.remove(), 600);
+      }
+      if (app) app.classList.remove('hidden');
 
-      // Check first launch onboarding
+      // Check onboarding / permission status
       this._checkFirstLaunch();
 
-      // Check for updates in background after 3s
+      // Check for updates after 3s
       setTimeout(() => {
         autoUpdater.checkForUpdates(true);
       }, 3000);
-    }, 1800);
+    }, 1200);
 
-    // Listen for app resume to re-check permissions
+    // Re-check permissions whenever user returns to the app from System Settings
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this._checkPermissionsStatus();
+        this.syncNativeData();
       }
     });
 
-    // Expose for inline event handlers
     window.WAApp = this;
-
-    console.log('🛡️ WA Recovery Pro initialized with Voice Suite & Auto-Updater');
+    console.log('🛡️ WA Recovery Pro active (Native Mode:', this.isNative, ')');
   }
 
   // =============================================
-  // FIRST-LAUNCH ONBOARDING WIZARD
+  // DATA SYNC (Native SQLite -> Web UI)
   // =============================================
 
-  _checkFirstLaunch() {
+  async syncNativeData() {
+    if (this.bridge) {
+      try {
+        const stats = await this.bridge.getStats();
+        if (stats) {
+          animateCounter(document.getElementById('stat-messages'), stats.totalMessages || 0);
+          animateCounter(document.getElementById('stat-deleted'), stats.deletedRecovered || 0);
+          animateCounter(document.getElementById('stat-media'), stats.totalMedia || 0);
+          animateCounter(document.getElementById('stat-voice'), stats.totalVoiceNotes || 0);
+        }
+
+        const msgResult = await this.bridge.getMessages({ filter: 'all' });
+        if (msgResult && msgResult.messages) {
+          const nativeMessages = JSON.parse(msgResult.messages);
+          for (const m of nativeMessages) {
+            await db.addMessage({
+              contact: m.contact,
+              text: m.text,
+              type: m.type,
+              timestamp: m.timestamp,
+              isDeleted: !!m.is_deleted,
+              direction: m.direction || 'received',
+              groupName: m.group_name,
+              isViewOnce: !!m.is_view_once,
+              thumbnailBase64: m.thumbnail_base64
+            });
+          }
+        }
+      } catch (err) {
+        console.log('Sync error:', err);
+      }
+    }
+
+    // Refresh current page view
+    if (this.currentPage === 'dashboard') await this.loadDashboard();
+    else if (this.currentPage === 'messages') await this.loadMessages();
+    else if (this.currentPage === 'media') await this.loadMediaGrid();
+    else if (this.currentPage === 'voice') await this.loadVoiceNotes();
+  }
+
+  // =============================================
+  // FIRST-LAUNCH ONBOARDING & REAL PERMISSIONS
+  // =============================================
+
+  async _checkFirstLaunch() {
+    const isGranted = await this._checkPermissionsStatus();
     const completed = localStorage.getItem('wa_onboarding_completed');
-    if (!completed) {
+    if (!completed || !isGranted) {
       this.showOnboarding();
     }
   }
@@ -114,48 +173,87 @@ class WARecoveryApp {
       btnBattery.addEventListener('click', () => this.openBatterySettings());
     }
     if (btnDone) {
-      btnDone.addEventListener('click', () => {
+      btnDone.addEventListener('click', async () => {
+        const notifGranted = await this._checkPermissionsStatus();
+        if (!notifGranted && this.isNative) {
+          showToast('Please enable Notification Access in settings first!', 'error', 3000);
+          this.openNotificationSettings();
+          return;
+        }
         localStorage.setItem('wa_onboarding_completed', 'true');
         const modal = document.getElementById('onboarding-modal');
         if (modal) modal.classList.add('hidden');
-        showToast('Recovery Service active & ready!', 'success');
+        showToast('Recovery Service active! Waiting for messages...', 'success');
         this.loadDashboard();
       });
     }
   }
 
-  openNotificationSettings() {
-    if (this.isNative && window.Capacitor?.Plugins?.RecoveryBridge) {
-      window.Capacitor.Plugins.RecoveryBridge.openNotificationSettings();
+  async openNotificationSettings() {
+    showToast('Opening Android Notification Settings...', 'info', 2000);
+    if (this.bridge) {
+      try {
+        await this.bridge.openNotificationSettings();
+      } catch (e) {
+        this.bridge.openAppSettings();
+      }
     } else {
-      // Web simulation
-      showToast('Opening System Notification Access Settings...', 'info');
-      setTimeout(() => {
-        this._markPermGranted('notif');
-      }, 1500);
+      setTimeout(() => this._markPermGranted('notif'), 1000);
     }
   }
 
-  openStorageSettings() {
-    if (this.isNative && window.Capacitor?.Plugins?.RecoveryBridge) {
-      window.Capacitor.Plugins.RecoveryBridge.openStorageSettings();
+  async openStorageSettings() {
+    showToast('Opening Storage Access Settings...', 'info', 2000);
+    if (this.bridge) {
+      try {
+        await this.bridge.openStorageSettings();
+      } catch (e) {
+        this.bridge.openAppSettings();
+      }
     } else {
-      showToast('Opening System Storage & Files Access Settings...', 'info');
-      setTimeout(() => {
-        this._markPermGranted('storage');
-      }, 1500);
+      setTimeout(() => this._markPermGranted('storage'), 1000);
     }
   }
 
-  openBatterySettings() {
-    if (this.isNative && window.Capacitor?.Plugins?.RecoveryBridge) {
-      window.Capacitor.Plugins.RecoveryBridge.openBatterySettings();
+  async openBatterySettings() {
+    showToast('Opening Battery Settings...', 'info', 2000);
+    if (this.bridge) {
+      try {
+        await this.bridge.openBatterySettings();
+      } catch (e) {
+        this.bridge.openAppSettings();
+      }
     } else {
-      showToast('Opening Battery Optimization Exemption...', 'info');
-      setTimeout(() => {
-        this._markPermGranted('battery');
-      }, 1500);
+      setTimeout(() => this._markPermGranted('battery'), 1000);
     }
+  }
+
+  async _checkPermissionsStatus() {
+    if (this.bridge) {
+      try {
+        const status = await this.bridge.isNotificationAccessEnabled();
+        if (status && status.enabled) {
+          this._markPermGranted('notif');
+          const badgeNls = document.getElementById('badge-nls');
+          if (badgeNls) {
+            badgeNls.textContent = 'Running';
+            badgeNls.className = 'badge badge-active';
+          }
+          return true;
+        } else {
+          this._markPermPending('notif');
+          const badgeNls = document.getElementById('badge-nls');
+          if (badgeNls) {
+            badgeNls.textContent = 'Disabled';
+            badgeNls.className = 'badge badge-warning';
+          }
+          return false;
+        }
+      } catch (e) {
+        console.log('Perm check error:', e);
+      }
+    }
+    return false;
   }
 
   _markPermGranted(type) {
@@ -172,24 +270,26 @@ class WARecoveryApp {
       btn.innerHTML = '<span class="material-icons-round">check_circle</span> Enabled on System';
       btn.classList.add('granted');
     }
-    showToast(`${type.toUpperCase()} permission granted!`, 'success');
   }
 
-  async _checkPermissionsStatus() {
-    if (this.isNative && window.Capacitor?.Plugins?.RecoveryBridge) {
-      try {
-        const status = await window.Capacitor.Plugins.RecoveryBridge.isNotificationAccessEnabled();
-        if (status?.enabled) {
-          this._markPermGranted('notif');
-        }
-      } catch (e) {
-        console.log('Perm check error:', e);
-      }
+  _markPermPending(type) {
+    const badge = document.getElementById(`badge-perm-${type}`);
+    const card = document.getElementById(`perm-step-${type}`);
+    const btn = document.getElementById(`btn-grant-${type === 'notif' ? 'notification' : type}`);
+
+    if (badge) {
+      badge.textContent = 'Required';
+      badge.className = 'perm-status-badge pending';
+    }
+    if (card) card.classList.remove('granted');
+    if (btn) {
+      btn.innerHTML = '<span class="material-icons-round">lock_open</span> Allow Notification Access';
+      btn.classList.remove('granted');
     }
   }
 
   // =============================================
-  // VOICE PLAYBACK & OPTIONS
+  // VOICE & SPEED CONTROLS
   // =============================================
 
   openVoiceOptions(voiceId) {
@@ -203,9 +303,7 @@ class WARecoveryApp {
     const nextSpeed = speeds[nextIdx];
     this.voiceSpeeds[voiceId] = nextSpeed;
 
-    if (btnEl) {
-      btnEl.textContent = `${nextSpeed}x`;
-    }
+    if (btnEl) btnEl.textContent = `${nextSpeed}x`;
     showToast(`Speed: ${nextSpeed}x`, 'info', 1200);
   }
 
@@ -215,9 +313,7 @@ class WARecoveryApp {
 
   transcribeVoice(voiceId) {
     voiceOptions.openOptions(voiceId);
-    setTimeout(() => {
-      voiceOptions.transcribeVoice();
-    }, 200);
+    setTimeout(() => voiceOptions.transcribeVoice(), 200);
   }
 
   // =============================================
@@ -225,15 +321,12 @@ class WARecoveryApp {
   // =============================================
 
   _initNavigation() {
-    const navItems = document.querySelectorAll('.nav-item');
-    navItems.forEach(item => {
+    document.querySelectorAll('.nav-item').forEach(item => {
       item.addEventListener('click', () => {
-        const page = item.dataset.page;
-        this.navigateTo(page);
+        this.navigateTo(item.dataset.page);
       });
     });
 
-    // View all messages shortcut from dashboard
     const viewAllBtn = document.getElementById('btn-view-all-messages');
     if (viewAllBtn) {
       viewAllBtn.addEventListener('click', () => this.navigateTo('messages'));
@@ -250,23 +343,16 @@ class WARecoveryApp {
   }
 
   navigateTo(page) {
-    // Update active nav item
     document.querySelectorAll('.nav-item').forEach(item => {
       item.classList.toggle('active', item.dataset.page === page);
     });
 
-    // Update active page
-    document.querySelectorAll('.page').forEach(p => {
-      p.classList.remove('active');
-    });
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     const pageEl = document.getElementById(`page-${page}`);
-    if (pageEl) {
-      pageEl.classList.add('active');
-    }
+    if (pageEl) pageEl.classList.add('active');
 
     this.currentPage = page;
 
-    // Load page data
     switch (page) {
       case 'dashboard': this.loadDashboard(); break;
       case 'messages': this.loadMessages(); break;
@@ -283,17 +369,15 @@ class WARecoveryApp {
   async loadDashboard() {
     const stats = await db.getStats();
 
-    // Animate stat counters
     animateCounter(document.getElementById('stat-messages'), stats.totalMessages);
     animateCounter(document.getElementById('stat-deleted'), stats.deletedRecovered);
     animateCounter(document.getElementById('stat-media'), stats.totalMedia);
     animateCounter(document.getElementById('stat-voice'), stats.totalVoiceNotes);
 
-    // Storage usage
     const storage = await mediaManager.getStorageUsage();
-    document.getElementById('storage-used').textContent = storage.formattedSize || '0 MB';
+    const storageEl = document.getElementById('storage-used');
+    if (storageEl) storageEl.textContent = storage.formattedSize || '0 MB';
 
-    // Recent messages
     const messages = await db.getMessages();
     const recentContainer = document.getElementById('recent-messages');
     const emptyContainer = document.getElementById('empty-recent');
@@ -303,7 +387,6 @@ class WARecoveryApp {
       emptyContainer.classList.add('hidden');
       recentContainer.classList.remove('hidden');
 
-      // Add click handlers to open chat
       recentContainer.querySelectorAll('.message-item').forEach(item => {
         item.addEventListener('click', () => {
           const contact = item.dataset.contact;
@@ -314,17 +397,6 @@ class WARecoveryApp {
     } else {
       recentContainer.classList.add('hidden');
       emptyContainer.classList.remove('hidden');
-    }
-
-    // Update nav badge
-    const newCount = messages.filter(m => {
-      const age = Date.now() - m.timestamp;
-      return age < 86400000; // less than 24h
-    }).length;
-    const badge = document.getElementById('nav-badge-messages');
-    if (newCount > 0) {
-      badge.textContent = newCount > 99 ? '99+' : newCount;
-      badge.classList.remove('hidden');
     }
   }
 
@@ -376,14 +448,10 @@ class WARecoveryApp {
 
   _initChatDetail() {
     const backBtn = document.getElementById('btn-chat-back');
-    if (backBtn) {
-      backBtn.addEventListener('click', () => this.closeChat());
-    }
+    if (backBtn) backBtn.addEventListener('click', () => this.closeChat());
     
     const exportBtn = document.getElementById('btn-chat-export');
-    if (exportBtn) {
-      exportBtn.addEventListener('click', () => this.exportChat());
-    }
+    if (exportBtn) exportBtn.addEventListener('click', () => this.exportChat());
   }
 
   async openChat(contactName) {
@@ -396,40 +464,37 @@ class WARecoveryApp {
     const avatarEl = document.getElementById('chat-detail-avatar');
     const messagesContainer = document.getElementById('chat-detail-messages');
 
-    nameEl.textContent = contactName;
+    if (nameEl) nameEl.textContent = contactName;
     const deletedCount = messages.filter(m => m.isDeleted).length;
-    statusEl.textContent = `${messages.length} messages${deletedCount > 0 ? ` · ${deletedCount} deleted recovered` : ''}`;
+    if (statusEl) {
+      statusEl.textContent = `${messages.length} messages${deletedCount > 0 ? ` · ${deletedCount} deleted recovered` : ''}`;
+    }
     
-    const initials = getInitials(contactName);
-    avatarEl.textContent = initials;
-    avatarEl.style.background = getAvatarColor(contactName);
+    if (avatarEl) {
+      avatarEl.textContent = getInitials(contactName);
+      avatarEl.style.background = getAvatarColor(contactName);
+    }
 
-    messagesContainer.innerHTML = messages.map(m => renderMessageBubble(m)).join('');
-    detail.classList.remove('hidden');
+    if (messagesContainer) {
+      messagesContainer.innerHTML = messages.map(m => renderMessageBubble(m)).join('');
+    }
+    if (detail) detail.classList.remove('hidden');
 
     setTimeout(() => {
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }, 100);
   }
 
   closeChat() {
     const detail = document.getElementById('chat-detail');
-    detail.style.animation = 'none';
-    detail.style.transform = 'translateX(100%)';
-    detail.style.transition = 'transform 0.3s cubic-bezier(0.22, 1, 0.36, 1)';
-    
-    setTimeout(() => {
+    if (detail) {
       detail.classList.add('hidden');
-      detail.style.animation = '';
-      detail.style.transform = '';
-      detail.style.transition = '';
       this.currentChat = null;
-    }, 300);
+    }
   }
 
   async exportChat() {
     if (!this.currentChat) return;
-    
     const messages = await db.getMessagesByContact(this.currentChat);
     let text = `Chat Export: ${this.currentChat}\nExported: ${new Date().toLocaleString()}\n${'='.repeat(40)}\n\n`;
     
@@ -447,7 +512,6 @@ class WARecoveryApp {
     a.download = `wa_chat_${this.currentChat.replace(/\s+/g, '_')}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-
     showToast('Chat exported successfully', 'success');
   }
 
@@ -464,9 +528,7 @@ class WARecoveryApp {
     if (searchBtn) {
       searchBtn.addEventListener('click', () => {
         searchBar.classList.toggle('hidden');
-        if (!searchBar.classList.contains('hidden')) {
-          searchInput.focus();
-        }
+        if (!searchBar.classList.contains('hidden')) searchInput.focus();
       });
     }
 
@@ -474,7 +536,7 @@ class WARecoveryApp {
       searchClose.addEventListener('click', () => {
         searchBar.classList.add('hidden');
         searchInput.value = '';
-        this._onSearchClear();
+        this.loadMessages();
       });
     }
 
@@ -482,16 +544,14 @@ class WARecoveryApp {
       let debounceTimer;
       searchInput.addEventListener('input', () => {
         clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          this._onSearch(searchInput.value);
-        }, 300);
+        debounceTimer = setTimeout(() => this._onSearch(searchInput.value), 300);
       });
     }
   }
 
   async _onSearch(query) {
     if (!query.trim()) {
-      this._onSearchClear();
+      this.loadMessages();
       return;
     }
 
@@ -519,14 +579,8 @@ class WARecoveryApp {
     }
   }
 
-  _onSearchClear() {
-    if (this.currentPage === 'messages') {
-      this.loadMessages();
-    }
-  }
-
   // =============================================
-  // MEDIA
+  // MEDIA & VOICE
   // =============================================
 
   _initMediaTabs() {
@@ -564,17 +618,13 @@ class WARecoveryApp {
     }
   }
 
-  // =============================================
-  // VOICE NOTES
-  // =============================================
-
   async loadVoiceNotes() {
     const notes = await db.getVoiceNotes();
     const list = document.getElementById('voice-list');
     const emptyState = document.getElementById('empty-voice');
     const countBadge = document.getElementById('voice-count');
 
-    countBadge.textContent = `${notes.length} notes`;
+    if (countBadge) countBadge.textContent = `${notes.length} notes`;
 
     if (notes.length > 0) {
       list.innerHTML = notes.map(v => renderVoiceItem(v)).join('');
@@ -609,13 +659,10 @@ class WARecoveryApp {
       this.audioPlayers[key].pause();
       delete this.audioPlayers[key];
     });
-    document.querySelectorAll('.voice-play-btn .material-icons-round').forEach(i => {
-      i.textContent = 'play_arrow';
-    });
+    document.querySelectorAll('.voice-play-btn .material-icons-round').forEach(i => i.textContent = 'play_arrow');
     document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
 
     icon.textContent = 'pause';
-    
     let barIndex = 0;
     const intervalTime = Math.max(50, Math.round(150 / speed));
 
@@ -629,13 +676,6 @@ class WARecoveryApp {
       }
       bars[barIndex].classList.add('active');
       barIndex++;
-      
-      const totalDuration = bars.length * 0.15;
-      const currentTime = (barIndex * 0.15);
-      const remaining = Math.max(0, totalDuration - currentTime);
-      const mins = Math.floor(remaining / 60);
-      const secs = Math.floor(remaining % 60);
-      timeEl.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
     }, intervalTime);
 
     this.audioPlayers[voiceId] = {
@@ -655,15 +695,11 @@ class WARecoveryApp {
     const rerunOnboardingBtn = document.getElementById('setting-onboarding-rerun');
 
     if (checkUpdatesBtn) {
-      checkUpdatesBtn.addEventListener('click', () => {
-        autoUpdater.checkForUpdates(false);
-      });
+      checkUpdatesBtn.addEventListener('click', () => autoUpdater.checkForUpdates(false));
     }
 
     if (rerunOnboardingBtn) {
-      rerunOnboardingBtn.addEventListener('click', () => {
-        this.showOnboarding();
-      });
+      rerunOnboardingBtn.addEventListener('click', () => this.showOnboarding());
     }
 
     if (exportBtn) {
@@ -674,10 +710,13 @@ class WARecoveryApp {
       clearBtn.addEventListener('click', () => {
         showModal(
           'Clear All Data',
-          'This will permanently delete all recovered messages, media, and voice notes. This action cannot be undone.',
+          'This will permanently delete all recovered messages and media saved by this app. Your real WhatsApp will NOT be touched.',
           async () => {
             await db.clearAll();
-            showToast('All data cleared', 'success');
+            if (this.bridge) {
+              try { await this.bridge.clearAll(); } catch (e) {}
+            }
+            showToast('All recovery data cleared', 'success');
             this.loadDashboard();
           }
         );
@@ -685,9 +724,7 @@ class WARecoveryApp {
     }
 
     if (enableBtn) {
-      enableBtn.addEventListener('click', () => {
-        this.showOnboarding();
-      });
+      enableBtn.addEventListener('click', () => this.showOnboarding());
     }
   }
 
@@ -713,100 +750,10 @@ class WARecoveryApp {
       showToast('Data exported successfully', 'success');
     } catch (err) {
       showToast('Export failed', 'error');
-      console.error('Export error:', err);
     }
-  }
-
-  // =============================================
-  // DEMO DATA SEEDING
-  // =============================================
-
-  async _seedDemoData() {
-    const contacts = [
-      'Ahmed Hassan', 'Sara Ali', 'Mohamed Khalid', 'Fatima Nour',
-      'Omar Youssef', 'Layla Ibrahim', 'Karim Adel', 'Nadia Samir'
-    ];
-
-    const sampleMessages = [
-      { text: "Hey, are you coming to the meeting?", type: "text" },
-      { text: "I'll send you the photos from yesterday", type: "text" },
-      { text: "Check this out! 😂", type: "text" },
-      { text: "Can you call me when you're free?", type: "text" },
-      { text: "Happy birthday! 🎂🎉", type: "text" },
-      { text: "The project deadline has been extended to Friday", type: "text" },
-      { text: "I just saw your message, sorry for the late reply", type: "text" },
-      { text: "Where should we meet tomorrow?", type: "text" },
-      { text: "That's a great idea! Let's do it", type: "text" },
-      { text: "Thanks for letting me know 👍", type: "text" }
-    ];
-
-    const deletedMessages = [
-      "I shouldn't have said that...",
-      "Actually, forget what I just sent",
-      "That was embarrassing 😳",
-      "Delete this before anyone sees it",
-      "Wrong chat, ignore that",
-      "Please pretend you didn't read this"
-    ];
-
-    const now = Date.now();
-    const day = 86400000;
-
-    for (let i = 0; i < 35; i++) {
-      const contact = contacts[Math.floor(Math.random() * contacts.length)];
-      const msg = sampleMessages[Math.floor(Math.random() * sampleMessages.length)];
-      await db.addMessage({
-        contact: contact,
-        text: msg.text,
-        type: msg.type,
-        timestamp: now - (Math.random() * day * 5),
-        isDeleted: false,
-        direction: Math.random() > 0.3 ? 'received' : 'sent',
-      });
-    }
-
-    for (let i = 0; i < 10; i++) {
-      const contact = contacts[Math.floor(Math.random() * contacts.length)];
-      const text = deletedMessages[Math.floor(Math.random() * deletedMessages.length)];
-      await db.addMessage({
-        contact: contact,
-        text: text,
-        type: 'text',
-        timestamp: now - (Math.random() * day * 3),
-        isDeleted: true,
-        direction: 'received',
-      });
-    }
-
-    for (let i = 0; i < 8; i++) {
-      const contact = contacts[Math.floor(Math.random() * contacts.length)];
-      const duration = Math.floor(Math.random() * 60) + 8;
-      const waveform = Array.from({ length: 32 }, () => Math.random());
-      const timeOffset = Math.random() * day * 4;
-
-      await db.addMessage({
-        contact: contact,
-        text: '🎤 Voice message',
-        type: 'voice',
-        duration: duration,
-        waveform: waveform,
-        timestamp: now - timeOffset,
-        direction: 'received',
-      });
-
-      await db.addVoiceNote({
-        contact: contact,
-        duration: duration,
-        waveform: waveform,
-        timestamp: now - timeOffset,
-      });
-    }
-
-    console.log('✅ Demo data seeded');
   }
 }
 
-// ---- Boot ----
 const app = new WARecoveryApp();
 document.addEventListener('DOMContentLoaded', () => app.init());
 
