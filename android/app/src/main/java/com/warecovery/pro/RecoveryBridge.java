@@ -276,6 +276,106 @@ public class RecoveryBridge extends Plugin {
     }
 
     // =============================================
+    // IN-APP APK AUTO-INSTALLER
+    // =============================================
+
+    /**
+     * Downloads an APK from a URL and launches the Android Package Installer.
+     */
+    @PluginMethod()
+    public void downloadAndInstallApk(PluginCall call) {
+        String apkUrl = call.getString("url");
+        if (apkUrl == null || apkUrl.isEmpty()) {
+            call.reject("APK URL is required");
+            return;
+        }
+
+        new Thread(() -> {
+            try {
+                Context context = getContext();
+                java.net.URL url = new java.net.URL(apkUrl);
+                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                connection.setRequestProperty("User-Agent", "WA-Recovery-Pro-Updater");
+                connection.setInstanceFollowRedirects(true);
+                connection.connect();
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == java.net.HttpURLConnection.HTTP_MOVED_PERM || 
+                    responseCode == java.net.HttpURLConnection.HTTP_MOVED_TEMP ||
+                    responseCode == 307 || responseCode == 308) {
+                    String newUrl = connection.getHeaderField("Location");
+                    url = new java.net.URL(newUrl);
+                    connection = (java.net.HttpURLConnection) url.openConnection();
+                    connection.setRequestProperty("User-Agent", "WA-Recovery-Pro-Updater");
+                    connection.connect();
+                }
+
+                int fileLength = connection.getContentLength();
+                java.io.File cacheDir = context.getExternalCacheDir();
+                if (cacheDir == null) cacheDir = context.getCacheDir();
+                java.io.File apkFile = new java.io.File(cacheDir, "WA-Recovery-Pro-Update.apk");
+                if (apkFile.exists()) {
+                    apkFile.delete();
+                }
+
+                java.io.InputStream input = new java.io.BufferedInputStream(connection.getInputStream(), 8192);
+                java.io.OutputStream output = new java.io.FileOutputStream(apkFile);
+
+                byte[] data = new byte[4096];
+                long total = 0;
+                int count;
+                int lastReportedProgress = -1;
+
+                while ((count = input.read(data)) != -1) {
+                    total += count;
+                    if (fileLength > 0) {
+                        int progress = (int) (total * 100 / fileLength);
+                        if (progress != lastReportedProgress) {
+                            lastReportedProgress = progress;
+                            JSObject progressObj = new JSObject();
+                            progressObj.put("progress", progress);
+                            progressObj.put("bytesDownloaded", total);
+                            progressObj.put("totalBytes", fileLength);
+                            notifyListeners("apkDownloadProgress", progressObj);
+                        }
+                    }
+                    output.write(data, 0, count);
+                }
+
+                output.flush();
+                output.close();
+                input.close();
+
+                // Launch Android Package Installer
+                android.net.Uri apkUri;
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                    apkUri = androidx.core.content.FileProvider.getUriForFile(
+                            context,
+                            context.getPackageName() + ".fileprovider",
+                            apkFile
+                    );
+                } else {
+                    apkUri = android.net.Uri.fromFile(apkFile);
+                }
+
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(intent);
+
+                JSObject result = new JSObject();
+                result.put("success", true);
+                call.resolve(result);
+
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to download and install APK", e);
+                call.reject("Download/Install failed: " + e.getMessage());
+            }
+        }).start();
+    }
+
+    // =============================================
     // NATIVE EVENT CALLBACKS
     // =============================================
 
