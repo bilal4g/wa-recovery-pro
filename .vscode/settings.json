@@ -1,13 +1,14 @@
 {
+  "java.project.referencedLibraries": [
+    "C:/Users/bilal/AppData/Local/Android/Sdk/platforms/android-34/android.jar",
+    ".vscode/libs/capacitor.jar"
+  ],
   "java.errors.incompleteClasspath.severity": "ignore",
   "java.configuration.updateBuildConfiguration": "disabled",
   "java.import.gradle.enabled": false,
   "java.autobuild.enabled": false,
   "java.project.importOnFirstTimeStartup": "disabled",
   "java.import.generatesMetadataFilesAtProjectRoot": false,
-  "java.project.referencedLibraries": [
-    "C:/Users/bilal/AppData/Local/Android/Sdk/platforms/android-34/android.jar"
-  ],
   "java.import.exclusions": [
     "**/node_modules/**",
     "**/.git/**",
