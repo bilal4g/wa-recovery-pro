@@ -1,12 +1,17 @@
 {
   "java.errors.incompleteClasspath.severity": "ignore",
-  "java.configuration.updateBuildConfiguration": "automatic",
-  "java.import.gradle.enabled": true,
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.import.gradle.enabled": false,
+  "java.autobuild.enabled": false,
+  "java.project.importOnFirstTimeStartup": "disabled",
+  "java.configuration.checkProjectSettingsExclusions": false,
   "java.import.exclusions": [
     "**/node_modules/**",
+    "**/.git/**",
     "**/dist/**",
     "**/build/**",
-    "**/.gradle/**"
+    "**/.gradle/**",
+    "**/android-src/**"
   ],
   "files.exclude": {
     "**/.git": true,
