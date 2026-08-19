@@ -1,8 +1,13 @@
 {
-  "java.project.sourcePaths": [
-    "android/app/src/main/java"
-  ],
+  "java.errors.incompleteClasspath.severity": "ignore",
   "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.gradle.enabled": true,
+  "java.import.exclusions": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    "**/.gradle/**"
+  ],
   "files.exclude": {
     "**/.git": true,
     "**/.svn": true,
