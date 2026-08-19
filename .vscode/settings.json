@@ -1,0 +1,16 @@
+{
+  "java.project.sourcePaths": [
+    "android/app/src/main/java"
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "android/.gradle": true,
+    "android/app/build": true
+  }
+}
