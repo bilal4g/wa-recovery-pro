@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src/main/java"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="C:/Users/bilal/AppData/Local/Android/Sdk/platforms/android-34/android.jar"/>
+	<classpathentry kind="lib" path="C:/Users/bilal/OneDrive/Desktop/whatsapp app/.vscode/libs/capacitor.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
