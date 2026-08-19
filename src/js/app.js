@@ -247,43 +247,61 @@ class WARecoveryApp {
     }
   }
 
+  getBridge() {
+    return window.Capacitor?.Plugins?.RecoveryBridge || this.bridge;
+  }
+
   async openNotificationSettings() {
-    showToast('Opening Android Notification Settings...', 'info', 2000);
+    const bridge = this.getBridge();
+    showToast('Opening Android Notification Access Settings...', 'info', 2000);
     this._startPermPolling();
-    if (this.bridge) {
+    if (bridge) {
       try {
-        await this.bridge.openNotificationSettings();
+        await bridge.openNotificationSettings();
       } catch (e) {
-        this.bridge.openAppSettings();
+        try {
+          await bridge.openAppSettings();
+        } catch (ignored) {}
       }
     } else {
-      setTimeout(() => this._markPermGranted('notif'), 1000);
+      console.warn('Native RecoveryBridge not connected.');
+      showToast('Please open Settings > Apps > WA Recovery Pro > Permissions', 'info', 4000);
     }
   }
 
   async openStorageSettings() {
+    const bridge = this.getBridge();
     showToast('Opening Storage Access Settings...', 'info', 2000);
-    if (this.bridge) {
+    this._startPermPolling();
+    if (bridge) {
       try {
-        await this.bridge.openStorageSettings();
+        await bridge.openStorageSettings();
       } catch (e) {
-        this.bridge.openAppSettings();
+        try {
+          await bridge.openAppSettings();
+        } catch (ignored) {}
       }
     } else {
-      setTimeout(() => this._markPermGranted('storage'), 1000);
+      console.warn('Native RecoveryBridge not connected.');
+      showToast('Please open Settings > Apps > WA Recovery Pro > Permissions', 'info', 4000);
     }
   }
 
   async openBatterySettings() {
-    showToast('Opening Battery Settings...', 'info', 2000);
-    if (this.bridge) {
+    const bridge = this.getBridge();
+    showToast('Opening Battery Optimization Settings...', 'info', 2000);
+    this._startPermPolling();
+    if (bridge) {
       try {
-        await this.bridge.openBatterySettings();
+        await bridge.openBatterySettings();
       } catch (e) {
-        this.bridge.openAppSettings();
+        try {
+          await bridge.openAppSettings();
+        } catch (ignored) {}
       }
     } else {
-      setTimeout(() => this._markPermGranted('battery'), 1000);
+      console.warn('Native RecoveryBridge not connected.');
+      showToast('Please open Settings > Apps > WA Recovery Pro > Battery', 'info', 4000);
     }
   }
 

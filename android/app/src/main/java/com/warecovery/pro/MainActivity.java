@@ -1,7 +1,12 @@
 package com.warecovery.pro;
 
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
 public class MainActivity extends BridgeActivity {
-    // Capacitor 6 automatically registers all @CapacitorPlugin annotated classes (RecoveryBridge) in the app package
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(RecoveryBridge.class);
+        super.onCreate(savedInstanceState);
+    }
 }
