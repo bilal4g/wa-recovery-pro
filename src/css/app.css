@@ -85,7 +85,8 @@ html {
 
 body {
   font-family: var(--font-primary);
-  background: var(--bg-base);
+  background: #0a0f1c url('/bg.jpeg') no-repeat center center fixed;
+  background-size: cover;
   color: var(--text-primary);
   line-height: 1.5;
   overflow-x: hidden;
@@ -93,6 +94,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
   min-height: 100dvh;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 15, 28, 0.65);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#app, .main-content, .top-header, .bottom-nav, .chat-detail, .modal-overlay, .media-lightbox, .onboarding-overlay {
+  position: relative;
+  z-index: 1;
 }
 
 /* Custom scrollbar */
