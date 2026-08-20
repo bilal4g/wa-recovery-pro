@@ -11,6 +11,7 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
+import androidx.core.content.FileProvider;
 
 import android.Manifest;
 import com.getcapacitor.JSObject;
@@ -507,7 +508,8 @@ public class RecoveryBridge extends Plugin {
             // Fallback for older devices or if setPreferredDevice didn't work
             if (audioManager != null) {
                 try {
-                    //noinspection deprecation
+                    @SuppressWarnings("deprecation")
+                    boolean speakerSuccess = true;
                     audioManager.setSpeakerphoneOn(true);
                 } catch (Exception ignored) {}
             }
@@ -923,7 +925,7 @@ public class RecoveryBridge extends Plugin {
 
         try {
             Context ctx = getContext();
-            Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
+            Uri contentUri = FileProvider.getUriForFile(
                     ctx,
                     ctx.getPackageName() + ".fileprovider",
                     file
