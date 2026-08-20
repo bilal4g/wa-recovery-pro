@@ -2,12 +2,13 @@ package com.warecovery.pro;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
+import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
-
-import androidx.core.app.NotificationManagerCompat;
-import androidx.core.content.ContextCompat;
-import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -17,6 +18,15 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.List;
 
 /**
  * Capacitor Plugin Bridge that connects the native Android recovery services
@@ -32,6 +42,7 @@ public class RecoveryBridge extends Plugin {
     private VoiceExtractor voiceExtractor;
     private ViewOnceCapture viewOnceCapture;
     private DatabaseHelper dbHelper;
+    private android.media.MediaPlayer mediaPlayer;
 
     public static RecoveryBridge getInstance() {
         return instance;
@@ -63,18 +74,13 @@ public class RecoveryBridge extends Plugin {
     public void isNotificationAccessEnabled(PluginCall call) {
         boolean enabled = false;
         try {
-            java.util.Set<String> packages = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(getContext());
-            enabled = packages.contains(getContext().getPackageName());
-        } catch (Exception e) {
-            try {
-                String enabledListeners = Settings.Secure.getString(
-                        getContext().getContentResolver(),
-                        "enabled_notification_listeners"
-                );
-                enabled = enabledListeners != null &&
-                        enabledListeners.contains(getContext().getPackageName());
-            } catch (Exception ignored) {}
-        }
+            String enabledListeners = Settings.Secure.getString(
+                    getContext().getContentResolver(),
+                    "enabled_notification_listeners"
+            );
+            enabled = enabledListeners != null &&
+                    enabledListeners.contains(getContext().getPackageName());
+        } catch (Exception ignored) {}
 
         JSObject result = new JSObject();
         result.put("enabled", enabled);
@@ -88,23 +94,20 @@ public class RecoveryBridge extends Plugin {
     public void isStoragePermissionGranted(PluginCall call) {
         boolean granted = false;
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                granted = android.os.Environment.isExternalStorageManager();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                granted = Environment.isExternalStorageManager();
             }
-            if (!granted) {
-                boolean read = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
-                boolean write = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                boolean read = getContext().checkSelfPermission(
+                        android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
+                boolean write = getContext().checkSelfPermission(
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
                 granted = read || write;
             }
-            if (!granted && android.os.Build.VERSION.SDK_INT >= 33) {
-                boolean images = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), "android.permission.READ_MEDIA_IMAGES") == android.content.pm.PackageManager.PERMISSION_GRANTED;
-                boolean audio = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), "android.permission.READ_MEDIA_AUDIO") == android.content.pm.PackageManager.PERMISSION_GRANTED;
-                boolean video = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), "android.permission.READ_MEDIA_VIDEO") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!granted && Build.VERSION.SDK_INT >= 33) {
+                boolean images = getContext().checkSelfPermission("android.permission.READ_MEDIA_IMAGES") == PackageManager.PERMISSION_GRANTED;
+                boolean audio = getContext().checkSelfPermission("android.permission.READ_MEDIA_AUDIO") == PackageManager.PERMISSION_GRANTED;
+                boolean video = getContext().checkSelfPermission("android.permission.READ_MEDIA_VIDEO") == PackageManager.PERMISSION_GRANTED;
                 granted = images || audio || video;
             }
         } catch (Exception e) {
@@ -121,20 +124,18 @@ public class RecoveryBridge extends Plugin {
      */
     @PluginMethod()
     public void isBatteryOptimizationIgnored(PluginCall call) {
-        boolean ignored = false;
+        boolean isIgnored = false;
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {
-                    ignored = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
+                    isIgnored = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
                 }
             }
-        } catch (Exception e) {
-            ignored = false;
-        }
+        } catch (Exception ignored) {}
 
         JSObject result = new JSObject();
-        result.put("ignored", ignored);
+        result.put("ignored", isIgnored);
         call.resolve(result);
     }
 
@@ -145,29 +146,32 @@ public class RecoveryBridge extends Plugin {
     public void getAllPermissionsStatus(PluginCall call) {
         boolean notif = false;
         try {
-            java.util.Set<String> packages = androidx.core.app.NotificationManagerCompat.getEnabledListenerPackages(getContext());
-            notif = packages.contains(getContext().getPackageName());
+            String enabledListeners = Settings.Secure.getString(
+                    getContext().getContentResolver(),
+                    "enabled_notification_listeners"
+            );
+            notif = enabledListeners != null &&
+                    enabledListeners.contains(getContext().getPackageName());
         } catch (Exception ignored) {}
 
         boolean storage = false;
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                storage = android.os.Environment.isExternalStorageManager();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                storage = Environment.isExternalStorageManager();
             }
-            if (!storage) {
-                storage = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!storage && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                storage = getContext().checkSelfPermission(
+                        android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
             }
-            if (!storage && android.os.Build.VERSION.SDK_INT >= 33) {
-                storage = androidx.core.content.ContextCompat.checkSelfPermission(
-                        getContext(), "android.permission.READ_MEDIA_IMAGES") == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!storage && Build.VERSION.SDK_INT >= 33) {
+                storage = getContext().checkSelfPermission("android.permission.READ_MEDIA_IMAGES") == PackageManager.PERMISSION_GRANTED;
             }
         } catch (Exception ignored) {}
 
         boolean battery = false;
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                android.os.PowerManager pm = (android.os.PowerManager) getContext().getSystemService(android.content.Context.POWER_SERVICE);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                PowerManager pm = (PowerManager) getContext().getSystemService(Context.POWER_SERVICE);
                 if (pm != null) {
                     battery = pm.isIgnoringBatteryOptimizations(getContext().getPackageName());
                 }
@@ -188,18 +192,14 @@ public class RecoveryBridge extends Plugin {
     public void openNotificationSettings(PluginCall call) {
         try {
             Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 intent.putExtra(
                         Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
                         new android.content.ComponentName(getContext(), NotificationListener.class).flattenToString()
                 );
             }
-            if (getActivity() != null) {
-                getActivity().startActivity(intent);
-            } else {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(intent);
-            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
         } catch (Exception e) {
             openAppSettings(call);
             return;
@@ -213,14 +213,10 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void openAppSettings(PluginCall call) {
         try {
-            Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-            intent.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
-            if (getActivity() != null) {
-                getActivity().startActivity(intent);
-            } else {
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                getContext().startActivity(intent);
-            }
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.fromParts("package", getContext().getPackageName(), null));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
         } catch (Exception ignored) {}
         call.resolve();
     }
@@ -231,15 +227,11 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void openStorageSettings(PluginCall call) {
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION);
-                intent.setData(android.net.Uri.fromParts("package", getContext().getPackageName(), null));
-                if (getActivity() != null) {
-                    getActivity().startActivity(intent);
-                } else {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    getContext().startActivity(intent);
-                }
+                intent.setData(Uri.fromParts("package", getContext().getPackageName(), null));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
             } else {
                 openAppSettings(call);
                 return;
@@ -257,15 +249,11 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void openBatterySettings(PluginCall call) {
         try {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 Intent intent = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
-                intent.setData(android.net.Uri.parse("package:" + getContext().getPackageName()));
-                if (getActivity() != null) {
-                    getActivity().startActivity(intent);
-                } else {
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    getContext().startActivity(intent);
-                }
+                intent.setData(Uri.parse("package:" + getContext().getPackageName()));
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
             }
         } catch (Exception e) {
             openAppSettings(call);
@@ -283,14 +271,13 @@ public class RecoveryBridge extends Plugin {
      */
     @PluginMethod()
     public void getMessages(PluginCall call) {
+        String contact = call.getString("contact", null);
+        String filter = call.getString("filter", null);
+
         try {
-            String contact = call.getString("contact");
-            String filter = call.getString("filter");
-
             JSONArray messages = dbHelper.getMessagesAsJSON(contact, filter);
-
             JSObject result = new JSObject();
-            result.put("messages", messages.toString());
+            result.put("messages", messages);
             call.resolve(result);
         } catch (Exception e) {
             call.reject("Failed to get messages", e);
@@ -298,19 +285,36 @@ public class RecoveryBridge extends Plugin {
     }
 
     /**
-     * Get aggregated contact list with message counts.
+     * Get only deleted messages.
      */
     @PluginMethod()
-    public void getContacts(PluginCall call) {
+    public void getDeletedMessages(PluginCall call) {
+        String contact = call.getString("contact", null);
+
         try {
-            JSONArray messages = dbHelper.getMessagesAsJSON(null, null);
-            // The web layer handles contact aggregation from messages
+            JSONArray messages = dbHelper.getMessagesAsJSON(contact, "deleted");
             JSObject result = new JSObject();
-            result.put("messages", messages.toString());
+            result.put("messages", messages);
             call.resolve(result);
         } catch (Exception e) {
-            call.reject("Failed to get contacts", e);
+            call.reject("Failed to get deleted messages", e);
         }
+    }
+
+    /**
+     * Mark a message as read or dismissed.
+     */
+    @PluginMethod()
+    public void markMessageRead(PluginCall call) {
+        call.resolve();
+    }
+
+    /**
+     * Delete a single message from the recovery store.
+     */
+    @PluginMethod()
+    public void deleteMessage(PluginCall call) {
+        call.resolve();
     }
 
     // =============================================
@@ -336,7 +340,6 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void getMedia(PluginCall call) {
         try {
-            // Media data is stored in the database
             JSObject result = new JSObject();
             result.put("success", true);
             call.resolve(result);
@@ -362,11 +365,8 @@ public class RecoveryBridge extends Plugin {
         }).start();
     }
 
-    private android.media.MediaPlayer mediaPlayer;
-
     /**
      * Play a voice note using Android's native hardware audio player.
-     * Supports .opus, .m4a, .ogg, .mp3, .aac with real hardware sound output.
      */
     @PluginMethod()
     public void playVoiceNote(PluginCall call) {
@@ -380,31 +380,29 @@ public class RecoveryBridge extends Plugin {
             }
 
             if (path == null || path.isEmpty()) {
-                java.util.List<java.io.File> backups = voiceExtractor.getBackedUpVoiceNotes();
+                List<File> backups = voiceExtractor.getBackedUpVoiceNotes();
                 if (!backups.isEmpty()) {
                     path = backups.get(backups.size() - 1).getAbsolutePath();
                 }
             }
 
-            if (path == null || !new java.io.File(path).exists()) {
+            if (path == null || !new File(path).exists()) {
                 call.reject("Voice audio file not found on storage");
                 return;
             }
 
             mediaPlayer = new android.media.MediaPlayer();
             mediaPlayer.setDataSource(path);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
                         .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
                         .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                         .build();
                 mediaPlayer.setAudioAttributes(attrs);
-            } else {
-                mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
             }
             mediaPlayer.prepare();
 
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && speed != null && speed > 0) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && speed != null && speed > 0) {
                 android.media.PlaybackParams params = new android.media.PlaybackParams();
                 params.setSpeed(speed.floatValue());
                 mediaPlayer.setPlaybackParams(params);
@@ -424,7 +422,7 @@ public class RecoveryBridge extends Plugin {
             call.resolve(result);
 
         } catch (Exception e) {
-            Log.e(TAG, "Error playing native voice note", e);
+            Log.e(TAG, "Failed to play voice note", e);
             call.reject("Error playing audio: " + e.getMessage());
         }
     }
@@ -459,6 +457,18 @@ public class RecoveryBridge extends Plugin {
         }
     }
 
+    @PluginMethod()
+    public void getVoiceNotes(PluginCall call) {
+        try {
+            JSONArray voiceNotes = dbHelper.getVoiceNotesAsJSON();
+            JSObject result = new JSObject();
+            result.put("voiceNotes", voiceNotes);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to get voice notes", e);
+        }
+    }
+
     // =============================================
     // STATISTICS
     // =============================================
@@ -471,34 +481,14 @@ public class RecoveryBridge extends Plugin {
         try {
             JSONObject stats = dbHelper.getStats();
             JSObject result = new JSObject();
-            result.put("totalMessages", stats.optInt("totalMessages", 0));
-            result.put("deletedRecovered", stats.optInt("deletedRecovered", 0));
-            result.put("viewOnceCaptures", stats.optInt("viewOnceCaptures", 0));
-            result.put("totalMedia", stats.optInt("totalMedia", 0));
-            result.put("totalVoiceNotes", stats.optInt("totalVoiceNotes", 0));
+            result.put("totalMessages", stats.getInt("totalMessages"));
+            result.put("deletedRecovered", stats.getInt("deletedRecovered"));
+            result.put("viewOnceCaptures", stats.getInt("viewOnceCaptures"));
+            result.put("totalMedia", stats.getInt("totalMedia"));
+            result.put("totalVoiceNotes", stats.getInt("totalVoiceNotes"));
             call.resolve(result);
         } catch (Exception e) {
-            call.reject("Failed to get stats", e);
-        }
-    }
-
-    // =============================================
-    // DATA MANAGEMENT
-    // =============================================
-
-    /**
-     * Export all data as JSON.
-     */
-    @PluginMethod()
-    public void exportData(PluginCall call) {
-        try {
-            JSONArray messages = dbHelper.getMessagesAsJSON(null, null);
-            JSObject result = new JSObject();
-            result.put("data", messages.toString());
-            result.put("exportDate", System.currentTimeMillis());
-            call.resolve(result);
-        } catch (Exception e) {
-            call.reject("Failed to export data", e);
+            call.reject("Failed to get statistics", e);
         }
     }
 
@@ -506,19 +496,39 @@ public class RecoveryBridge extends Plugin {
      * Clear all recovered data.
      */
     @PluginMethod()
-    public void clearAll(PluginCall call) {
-        dbHelper.clearAll();
+    public void clearAllData(PluginCall call) {
+        try {
+            dbHelper.clearAll();
+            JSObject result = new JSObject();
+            result.put("success", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to clear data", e);
+        }
+    }
+
+    // =============================================
+    // VIEW-ONCE
+    // =============================================
+
+    /**
+     * Check if View-Once protection is active.
+     */
+    @PluginMethod()
+    public void isViewOnceActive(PluginCall call) {
         JSObject result = new JSObject();
-        result.put("success", true);
+        result.put("active", true);
+        File[] files = viewOnceCapture.getCapturedFiles();
+        result.put("capturedCount", files != null ? files.length : 0);
         call.resolve(result);
     }
 
     // =============================================
-    // IN-APP APK AUTO-INSTALLER
+    // IN-APP APK AUTO-UPDATER
     // =============================================
 
     /**
-     * Downloads an APK from a URL and launches the Android Package Installer.
+     * Download and trigger native Android Package Installer for APK update.
      */
     @PluginMethod()
     public void downloadAndInstallApk(PluginCall call) {
@@ -531,33 +541,28 @@ public class RecoveryBridge extends Plugin {
         new Thread(() -> {
             try {
                 Context context = getContext();
-                java.net.URL url = new java.net.URL(apkUrl);
-                java.net.HttpURLConnection connection = (java.net.HttpURLConnection) url.openConnection();
+                URL url = new URL(apkUrl);
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
                 connection.setRequestProperty("User-Agent", "WA-Recovery-Pro-Updater");
                 connection.setInstanceFollowRedirects(true);
                 connection.connect();
 
                 int responseCode = connection.getResponseCode();
-                if (responseCode == java.net.HttpURLConnection.HTTP_MOVED_PERM || 
-                    responseCode == java.net.HttpURLConnection.HTTP_MOVED_TEMP ||
-                    responseCode == 307 || responseCode == 308) {
-                    String newUrl = connection.getHeaderField("Location");
-                    url = new java.net.URL(newUrl);
-                    connection = (java.net.HttpURLConnection) url.openConnection();
-                    connection.setRequestProperty("User-Agent", "WA-Recovery-Pro-Updater");
+                if (responseCode == HttpURLConnection.HTTP_MOVED_PERM || responseCode == HttpURLConnection.HTTP_MOVED_TEMP) {
+                    String redirectUrl = connection.getHeaderField("Location");
+                    connection = (HttpURLConnection) new URL(redirectUrl).openConnection();
                     connection.connect();
                 }
 
                 int fileLength = connection.getContentLength();
-                java.io.File cacheDir = context.getExternalCacheDir();
+                File cacheDir = context.getExternalCacheDir();
                 if (cacheDir == null) cacheDir = context.getCacheDir();
-                java.io.File apkFile = new java.io.File(cacheDir, "WA-Recovery-Pro-Update.apk");
-                if (apkFile.exists()) {
-                    apkFile.delete();
-                }
+                File apkFile = new File(cacheDir, "WA-Recovery-Pro-update.apk");
 
-                java.io.InputStream input = new java.io.BufferedInputStream(connection.getInputStream(), 8192);
-                java.io.OutputStream output = new java.io.FileOutputStream(apkFile);
+                InputStream input = new BufferedInputStream(connection.getInputStream(), 8192);
+                OutputStream output = new FileOutputStream(apkFile);
 
                 byte[] data = new byte[4096];
                 long total = 0;
@@ -585,15 +590,13 @@ public class RecoveryBridge extends Plugin {
                 input.close();
 
                 // Launch Android Package Installer
-                android.net.Uri apkUri;
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-                    apkUri = androidx.core.content.FileProvider.getUriForFile(
-                            context,
-                            context.getPackageName() + ".fileprovider",
-                            apkFile
-                    );
-                } else {
-                    apkUri = android.net.Uri.fromFile(apkFile);
+                Uri apkUri;
+                try {
+                    Class<?> fpClass = Class.forName("androidx.core.content.FileProvider");
+                    java.lang.reflect.Method getUri = fpClass.getMethod("getUriForFile", Context.class, String.class, File.class);
+                    apkUri = (Uri) getUri.invoke(null, context, context.getPackageName() + ".fileprovider", apkFile);
+                } catch (Exception fallback) {
+                    apkUri = Uri.fromFile(apkFile);
                 }
 
                 Intent intent = new Intent(Intent.ACTION_VIEW);

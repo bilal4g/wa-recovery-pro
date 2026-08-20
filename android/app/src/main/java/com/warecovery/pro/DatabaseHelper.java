@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -188,6 +189,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COL_NOTIFICATION_KEY + " = ?", new String[]{notificationKey});
     }
 
+    /**
+     * Mark the most recent message from a contact as deleted when WhatsApp posts
+     * "This message was deleted" / "تم حذف هذه الرسالة"
+     */
+    public void markLatestMessageDeleted(String contact) {
+        if (contact == null || contact.isEmpty()) return;
+        SQLiteDatabase db = getWritableDatabase();
+        try {
+            String sql = "UPDATE " + TABLE_MESSAGES + " SET " + COL_IS_DELETED + " = 1, "
+                    + COL_DELETED_AT + " = " + System.currentTimeMillis()
+                    + " WHERE " + COL_ID + " = ("
+                    + "   SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
+                    + "   WHERE " + COL_CONTACT + " = ? AND " + COL_IS_DELETED + " = 0"
+                    + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
+                    + ")";
+            db.execSQL(sql, new Object[]{contact});
+            Log.d("WARecovery_DB", "Successfully marked latest message from " + contact + " as deleted!");
+        } catch (Exception e) {
+            Log.e("WARecovery_DB", "Error marking latest message deleted for " + contact, e);
+        }
+    }
+
+    /**
+     * Update the latest message from contact with recovered voice audio file path.
+     */
+    public void updateLatestMessageVoiceAudio(String contact, String voicePath) {
+        if (contact == null || voicePath == null) return;
+        SQLiteDatabase db = getWritableDatabase();
+        try {
+            String sql = "UPDATE " + TABLE_MESSAGES + " SET " + COL_MEDIA_URL + " = ?, "
+                    + COL_TYPE + " = 'voice' "
+                    + " WHERE " + COL_ID + " = ("
+                    + "   SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
+                    + "   WHERE " + COL_CONTACT + " = ? "
+                    + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
+                    + ")";
+            db.execSQL(sql, new Object[]{voicePath, contact});
+        } catch (Exception ignored) {}
+    }
+
     public JSONArray getMessagesAsJSON(String contact, String filter) throws JSONException {
         SQLiteDatabase db = getReadableDatabase();
         String selection = null;
@@ -256,6 +297,27 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COL_TIMESTAMP, timestamp);
         values.put(COL_IS_DELETED, isDeleted ? 1 : 0);
         return db.insert(TABLE_VOICE_NOTES, null, values);
+    }
+
+    public JSONArray getVoiceNotesAsJSON() throws JSONException {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor cursor = db.query(TABLE_VOICE_NOTES, null, null, null,
+                null, null, COL_TIMESTAMP + " DESC", "200");
+
+        JSONArray result = new JSONArray();
+        while (cursor.moveToNext()) {
+            JSONObject vn = new JSONObject();
+            vn.put("id", cursor.getLong(cursor.getColumnIndexOrThrow(COL_ID)));
+            vn.put("contact", cursor.getString(cursor.getColumnIndexOrThrow(COL_CONTACT)));
+            vn.put("voicePath", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
+            vn.put("audioUrl", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
+            vn.put("duration", cursor.getInt(cursor.getColumnIndexOrThrow(COL_DURATION)));
+            vn.put("timestamp", cursor.getLong(cursor.getColumnIndexOrThrow(COL_TIMESTAMP)));
+            vn.put("isDeleted", cursor.getInt(cursor.getColumnIndexOrThrow(COL_IS_DELETED)) == 1);
+            result.put(vn);
+        }
+        cursor.close();
+        return result;
     }
 
     // ---- View-Once CRUD ----

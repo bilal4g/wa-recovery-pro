@@ -1,7 +1,6 @@
 package com.warecovery.pro;
 
 import android.app.Notification;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
@@ -13,15 +12,15 @@ import android.util.Log;
 import java.io.ByteArrayOutputStream;
 
 /**
- * Notification Listener Service that captures all WhatsApp notifications.
- * This is the core of the message recovery system.
- * 
- * When WhatsApp sends a notification (new message), we capture it and store it.
- * When a notification is removed (message deleted by sender), we mark it as deleted.
+ * Android NotificationListenerService that captures WhatsApp messages in real-time.
+ * Automatically handles:
+ * - Real sender deleted messages ("This message was deleted" / "تم حذف هذه الرسالة")
+ * - Voice notes (.opus audio extraction and hardware playback pairing)
+ * - View-Once photos and normal media
  */
 public class NotificationListener extends NotificationListenerService {
 
-    private static final String TAG = "WARecovery_NLS";
+    private static final String TAG = "WARecovery_NL";
     private static final String WHATSAPP_PACKAGE = "com.whatsapp";
     private static final String WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b";
 
@@ -38,14 +37,6 @@ public class NotificationListener extends NotificationListenerService {
         instance = this;
         dbHelper = DatabaseHelper.getInstance(this);
         Log.i(TAG, "NotificationListenerService created");
-
-        // Start watching WhatsApp media directories for view-once captures
-        try {
-            ViewOnceWatcher.getInstance(this).startWatching();
-            Log.i(TAG, "ViewOnceWatcher started");
-        } catch (Exception e) {
-            Log.w(TAG, "Could not start ViewOnceWatcher", e);
-        }
     }
 
     @Override
@@ -57,13 +48,11 @@ public class NotificationListener extends NotificationListenerService {
 
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
-        // Only process WhatsApp notifications
         if (!isWhatsAppNotification(sbn)) return;
 
         try {
             Notification notification = sbn.getNotification();
             Bundle extras = notification.extras;
-
             if (extras == null) return;
 
             // Extract message data
@@ -73,8 +62,18 @@ public class NotificationListener extends NotificationListenerService {
             long timestamp = sbn.getPostTime();
             String key = sbn.getKey();
 
-            // Skip summary/group notifications
+            // Skip summary/group headers
             if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+            if (contact.equals("WhatsApp") || contact.equals("WhatsApp Business")) return;
+
+            // 1. DELETION EVENT DETECTION
+            // WhatsApp updates the notification to "This message was deleted" / "تم حذف هذه الرسالة"
+            if (isDeletionNotification(text)) {
+                Log.d(TAG, "⚠️ Deletion event detected from " + contact + "!");
+                dbHelper.markLatestMessageDeleted(contact);
+                notifyWebLayer("messageDeleted", contact);
+                return; // Do not insert the deletion string as a normal message
+            }
 
             // Detect message type
             String type = detectMessageType(extras, text);
@@ -86,17 +85,17 @@ public class NotificationListener extends NotificationListenerService {
                 groupName = subText.toString();
             }
 
-            // Check for view-once (WhatsApp marks these differently in notification)
+            // Check for view-once
             boolean isViewOnce = isViewOnceMessage(extras, text);
 
-            // Extract thumbnail/photo if available from all Android notification channels
+            // Extract thumbnail / photo
             Bitmap picture = extractBitmap(notification, extras);
             String thumbnailBase64 = null;
             if (picture != null) {
                 thumbnailBase64 = bitmapToBase64(picture);
             }
 
-            // If it's a photo or view-once with image data, also register in Media gallery
+            // If photo or view-once, register in media table
             if (thumbnailBase64 != null && ("image".equals(type) || isViewOnce)) {
                 dbHelper.insertMedia(
                         contact,
@@ -111,18 +110,7 @@ public class NotificationListener extends NotificationListenerService {
                 );
             }
 
-            // If it's a voice note, extract incoming .opus audio file immediately
-            if ("voice".equals(type)) {
-                new Thread(() -> {
-                    try {
-                        Thread.sleep(800); // Allow WhatsApp 800ms to complete download
-                        VoiceExtractor extractor = new VoiceExtractor(this);
-                        extractor.scanAndExtract();
-                    } catch (Exception ignored) {}
-                }).start();
-            }
-
-            // Store in database
+            // Store message in database
             dbHelper.insertMessage(
                     contact,
                     text,
@@ -130,16 +118,31 @@ public class NotificationListener extends NotificationListenerService {
                     timestamp,
                     "received",
                     groupName,
-                    false,  // not deleted yet
+                    false,
                     isViewOnce,
-                    thumbnailBase64,   // mediaUrl
                     thumbnailBase64,
-                    key     // notification key for tracking deletions
+                    thumbnailBase64,
+                    key
             );
 
-            Log.d(TAG, "Captured message from " + contact + ": " + text.substring(0, Math.min(30, text.length())));
+            // If voice note, extract incoming .opus audio file immediately
+            if ("voice".equals(type) || "audio".equals(type)) {
+                final String voiceContact = contact;
+                new Thread(() -> {
+                    try {
+                        VoiceExtractor extractor = new VoiceExtractor(this);
+                        // Attempt immediate scan
+                        String vPath = extractor.extractLatestVoiceForContact(voiceContact);
+                        if (vPath == null) {
+                            Thread.sleep(1200); // Allow WhatsApp 1.2s to finish writing file
+                            extractor.extractLatestVoiceForContact(voiceContact);
+                        }
+                        notifyWebLayer("newMessage", voiceContact);
+                    } catch (Exception ignored) {}
+                }).start();
+            }
 
-            // Notify the web layer (if bridge is registered)
+            Log.d(TAG, "Captured message from " + contact + " [" + type + "]: " + text);
             notifyWebLayer("newMessage", contact);
 
         } catch (Exception e) {
@@ -149,11 +152,8 @@ public class NotificationListener extends NotificationListenerService {
 
     @Override
     public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap, int reason) {
-        // Only process WhatsApp notifications
         if (!isWhatsAppNotification(sbn)) return;
 
-        // reason == REASON_APP_CANCEL typically means the sender deleted the message
-        // reason == REASON_CANCEL means user dismissed it
         if (reason == REASON_APP_CANCEL) {
             String key = sbn.getKey();
             dbHelper.markMessageDeleted(key);
@@ -164,7 +164,8 @@ public class NotificationListener extends NotificationListenerService {
                 contact = extras.getString(Notification.EXTRA_TITLE, "Unknown");
             }
 
-            Log.d(TAG, "Message deleted by sender — recovered! Contact: " + contact);
+            dbHelper.markLatestMessageDeleted(contact);
+            Log.d(TAG, "Notification cancelled by app — marked deleted for: " + contact);
             notifyWebLayer("messageDeleted", contact);
         }
     }
@@ -176,34 +177,70 @@ public class NotificationListener extends NotificationListenerService {
         return WHATSAPP_PACKAGE.equals(pkg) || WHATSAPP_BUSINESS_PACKAGE.equals(pkg);
     }
 
+    private boolean isDeletionNotification(String text) {
+        if (text == null) return false;
+        String lower = text.toLowerCase().trim();
+        return lower.contains("this message was deleted") ||
+               lower.contains("message was deleted") ||
+               lower.contains("deleted this message") ||
+               lower.contains("تم حذف هذه الرسالة") ||
+               lower.contains("تم مسح هذه الرسالة") ||
+               lower.contains("تم إلغاء إرسال") ||
+               lower.contains("ce message a été supprimé") ||
+               lower.contains("este mensaje fue eliminado") ||
+               lower.contains("diese nachricht wurde gelöscht") ||
+               lower.contains("bu mesaj silindi");
+    }
+
     private String detectMessageType(Bundle extras, String text) {
         if (text == null) return "text";
 
-        // WhatsApp notification text patterns
         String lower = text.toLowerCase();
-        if (lower.contains("photo") || lower.contains("image") || lower.equals("📷 photo")) return "image";
-        if (lower.contains("video") || lower.equals("📹 video")) return "video";
-        if (lower.contains("voice message") || lower.contains("🎤")) return "voice";
-        if (lower.contains("document") || lower.contains("📄")) return "document";
-        if (lower.contains("sticker")) return "sticker";
-        if (lower.contains("gif") || lower.equals("gif")) return "gif";
-        if (lower.contains("audio") || lower.equals("🎵 audio")) return "audio";
-        if (lower.contains("contact card")) return "contact";
-        if (lower.contains("location") || lower.contains("📍")) return "location";
+        // Multilingual Voice Detection
+        if (lower.contains("voice message") || lower.contains("🎤") ||
+            lower.contains("رسالة صوتية") || lower.contains("مقطع صوتي") ||
+            lower.contains("صوتية") || lower.contains("ptt") ||
+            lower.contains("nota de voz") || lower.contains("message vocal")) {
+            return "voice";
+        }
+        // Multilingual Media Detection
+        if (lower.contains("photo") || lower.contains("image") || lower.contains("📷") ||
+            lower.contains("صورة") || lower.contains("foto")) {
+            return "image";
+        }
+        if (lower.contains("video") || lower.contains("📹") || lower.contains("فيديو")) {
+            return "video";
+        }
+        if (lower.contains("document") || lower.contains("📄") || lower.contains("مستند")) {
+            return "document";
+        }
+        if (lower.contains("sticker") || lower.contains("ملصق")) {
+            return "sticker";
+        }
+        if (lower.contains("gif")) {
+            return "gif";
+        }
+        if (lower.contains("audio") || lower.contains("🎵") || lower.contains("صوت")) {
+            return "audio";
+        }
+        if (lower.contains("location") || lower.contains("📍") || lower.contains("موقع")) {
+            return "location";
+        }
 
-        // Check for media in extras
-        if (extras.containsKey(Notification.EXTRA_PICTURE)) return "image";
+        if (extras != null && extras.containsKey(Notification.EXTRA_PICTURE)) {
+            return "image";
+        }
 
         return "text";
     }
 
     private boolean isViewOnceMessage(Bundle extras, String text) {
         if (text == null) return false;
-        String lower = text.toLowerCase();
-        // WhatsApp view-once messages show as "Photo" or "Video" with a specific icon
-        // and the notification typically just says "photo" or "video" without preview
+        String lower = text.toLowerCase().trim();
         return lower.equals("photo") || lower.equals("video") ||
-               lower.contains("view once") || lower.contains("📷") && lower.length() < 10;
+               lower.equals("📷 photo") || lower.equals("📹 video") ||
+               lower.equals("صورة") || lower.equals("فيديو") ||
+               lower.contains("view once") || lower.contains("عرض لمرة واحدة");
     }
 
     private Bitmap extractBitmap(Notification notification, Bundle extras) {
@@ -222,28 +259,21 @@ public class NotificationListener extends NotificationListenerService {
                     }
                 }
 
-                Bitmap large = extras.getParcelable(Notification.EXTRA_LARGE_ICON);
-                if (large != null) return large;
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notification.getLargeIcon() != null) {
-                android.graphics.drawable.Drawable drawable = notification.getLargeIcon().loadDrawable(this);
-                if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
-                    return ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
-                }
+                Bitmap largeIcon = extras.getParcelable(Notification.EXTRA_LARGE_ICON);
+                if (largeIcon != null) return largeIcon;
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error extracting bitmap", e);
+            Log.w(TAG, "Could not extract bitmap from notification");
         }
         return null;
     }
 
     private String bitmapToBase64(Bitmap bitmap) {
         try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 70, baos);
-            byte[] bytes = baos.toByteArray();
-            return "data:image/jpeg;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP);
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream);
+            byte[] byteArray = outputStream.toByteArray();
+            return "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP);
         } catch (Exception e) {
             Log.e(TAG, "Error converting bitmap to base64", e);
             return null;
@@ -251,14 +281,9 @@ public class NotificationListener extends NotificationListenerService {
     }
 
     private void notifyWebLayer(String event, String data) {
-        // This will be connected to the Capacitor bridge
-        try {
-            RecoveryBridge bridge = RecoveryBridge.getInstance();
-            if (bridge != null) {
-                bridge.onNativeEvent(event, data);
-            }
-        } catch (Exception e) {
-            Log.w(TAG, "Could not notify web layer", e);
+        RecoveryBridge bridge = RecoveryBridge.getInstance();
+        if (bridge != null) {
+            bridge.onNativeEvent(event, data);
         }
     }
 }

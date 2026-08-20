@@ -10,6 +10,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -22,9 +23,13 @@ public class VoiceExtractor {
 
     private static final String[] VOICE_NOTE_PATHS = {
             "/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Voice Notes",
-            "/WhatsApp/Media/WhatsApp Voice Notes",
+            "/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Voice Notes",
             "/Android/media/com.whatsapp/WhatsApp/Media/WhatsApp Audio",
-            "/WhatsApp/Media/WhatsApp Audio"
+            "/Android/media/com.whatsapp.w4b/WhatsApp Business/Media/WhatsApp Business Audio",
+            "/WhatsApp/Media/WhatsApp Voice Notes",
+            "/WhatsApp Business/Media/WhatsApp Business Voice Notes",
+            "/WhatsApp/Media/WhatsApp Audio",
+            "/WhatsApp Business/Media/WhatsApp Business Audio"
     };
 
     private final android.content.Context context;
@@ -41,65 +46,82 @@ public class VoiceExtractor {
     }
 
     /**
-     * Scan all WhatsApp voice note directories and back up any new files.
+     * Finds the newest .opus voice note on the device (created within last 5 minutes),
+     * copies it into private app backup storage, and links it directly to the contact.
      */
-    public int scanAndExtract() {
-        int count = 0;
+    public String extractLatestVoiceForContact(String contact) {
+        List<File> allVoiceFiles = new ArrayList<>();
 
         for (String path : VOICE_NOTE_PATHS) {
             String fullPath = Environment.getExternalStorageDirectory() + path;
             File dir = new File(fullPath);
-
             if (dir.exists() && dir.isDirectory()) {
-                count += scanVoiceDirectory(dir);
+                collectVoiceFiles(dir, allVoiceFiles);
             }
         }
 
-        Log.i(TAG, "Voice scan complete: " + count + " voice notes found");
-        return count;
+        if (allVoiceFiles.isEmpty()) {
+            Log.w(TAG, "No voice notes found in WhatsApp directories");
+            return null;
+        }
+
+        // Sort descending by lastModified (newest first)
+        Collections.sort(allVoiceFiles, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
+
+        File newest = allVoiceFiles.get(0);
+        long ageMs = System.currentTimeMillis() - newest.lastModified();
+
+        // If file was modified in the last 5 minutes, it belongs to this incoming voice message!
+        if (ageMs < 300000) {
+            String backupPath = backupVoiceFile(newest);
+            if (backupPath != null) {
+                int duration = getAudioDuration(newest);
+                dbHelper.insertVoiceNote(contact, backupPath, duration, System.currentTimeMillis(), false);
+                dbHelper.updateLatestMessageVoiceAudio(contact, backupPath);
+                Log.i(TAG, "✅ Successfully captured voice note from " + contact + ": " + backupPath);
+                return backupPath;
+            }
+        }
+
+        return null;
     }
 
-    private int scanVoiceDirectory(File dir) {
+    /**
+     * Scan all WhatsApp voice note directories and back up any new files.
+     */
+    public int scanAndExtract() {
         int count = 0;
-        File[] files = dir.listFiles();
-        if (files == null) return 0;
-
-        for (File file : files) {
-            if (file.isDirectory()) {
-                count += scanVoiceDirectory(file);
-            } else if (isVoiceFile(file)) {
-                processVoiceFile(file);
-                count++;
+        List<File> allFiles = new ArrayList<>();
+        for (String path : VOICE_NOTE_PATHS) {
+            String fullPath = Environment.getExternalStorageDirectory() + path;
+            File dir = new File(fullPath);
+            if (dir.exists() && dir.isDirectory()) {
+                collectVoiceFiles(dir, allFiles);
             }
+        }
+
+        for (File file : allFiles) {
+            try {
+                int duration = getAudioDuration(file);
+                String backupPath = backupVoiceFile(file);
+                if (backupPath != null) {
+                    dbHelper.insertVoiceNote("Voice Note", backupPath, duration, file.lastModified(), false);
+                    count++;
+                }
+            } catch (Exception ignored) {}
         }
         return count;
     }
 
-    private void processVoiceFile(File file) {
-        try {
-            // Get duration using MediaMetadataRetriever
-            int duration = getAudioDuration(file);
-
-            // Back up the file
-            String backupPath = backupVoiceFile(file);
-            if (backupPath == null) return;
-
-            // Try to determine contact from parent directory structure
-            String contact = extractContactFromPath(file);
-
-            // Store in database
-            dbHelper.insertVoiceNote(
-                    contact,
-                    backupPath,
-                    duration,
-                    file.lastModified(),
-                    false
-            );
-
-            Log.d(TAG, "Processed voice note: " + file.getName() + " (duration: " + duration + "s)");
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error processing voice file: " + file.getName(), e);
+    private void collectVoiceFiles(File dir, List<File> result) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (f.isDirectory()) {
+                collectVoiceFiles(f, result);
+            } else if (isVoiceFile(f)) {
+                result.add(f);
+            }
         }
     }
 
@@ -114,25 +136,13 @@ public class VoiceExtractor {
             if (durationStr != null) {
                 return Integer.parseInt(durationStr) / 1000; // Convert ms to seconds
             }
-        } catch (Exception e) {
-            Log.w(TAG, "Could not extract duration for: " + file.getName());
+        } catch (Exception ignored) {
         } finally {
             try {
                 retriever.release();
             } catch (Exception ignored) {}
         }
         return 0;
-    }
-
-    /**
-     * Extract a contact name from the file path structure.
-     * WhatsApp voice notes are organized in timestamped folders, not by contact.
-     */
-    private String extractContactFromPath(File file) {
-        // WhatsApp stores voice notes in numbered directories (e.g., /Voice Notes/202308/)
-        // We can't determine the contact from the path alone.
-        // The contact association happens via the NotificationListener when the voice is received.
-        return null;
     }
 
     private String backupVoiceFile(File source) {
