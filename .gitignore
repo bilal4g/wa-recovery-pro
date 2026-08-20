@@ -2,6 +2,7 @@ node_modules/
 dist/
 .gradle/
 *.apk
+!WA-Recovery-Pro.apk
 *.aab
 *.keystore
 .env

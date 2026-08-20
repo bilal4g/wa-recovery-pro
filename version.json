@@ -13,6 +13,6 @@
   ],
   "hasLivePatch": true,
   "patchSize": "240 KB",
-  "apkUrl": "https://github.com/bilal4g/wa-recovery-pro/releases/latest/download/WA-Recovery-Pro.apk",
+  "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
   "minNativeVersion": "1.0.0"
 }
