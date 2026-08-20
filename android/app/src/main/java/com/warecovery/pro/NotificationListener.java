@@ -38,6 +38,14 @@ public class NotificationListener extends NotificationListenerService {
         instance = this;
         dbHelper = DatabaseHelper.getInstance(this);
         Log.i(TAG, "NotificationListenerService created");
+
+        // Start watching WhatsApp media directories for view-once captures
+        try {
+            ViewOnceWatcher.getInstance(this).startWatching();
+            Log.i(TAG, "ViewOnceWatcher started");
+        } catch (Exception e) {
+            Log.w(TAG, "Could not start ViewOnceWatcher", e);
+        }
     }
 
     @Override

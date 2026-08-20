@@ -8,7 +8,7 @@ import db from './database.js';
 import {
   renderMessageItem, renderChatItem, renderMessageBubble,
   renderVoiceItem, renderMediaItem, showToast, showModal,
-  animateCounter, formatTime, formatFileSize, getInitials, getAvatarColor
+  formatTime, formatFileSize, getInitials, getAvatarColor
 } from './ui-components.js';
 import mediaManager from './media-manager.js';
 import voiceOptions from './voice-options.js';
@@ -104,10 +104,10 @@ class WARecoveryApp {
       try {
         const stats = await this.bridge.getStats();
         if (stats) {
-          animateCounter(document.getElementById('stat-messages'), stats.totalMessages || 0);
-          animateCounter(document.getElementById('stat-deleted'), stats.deletedRecovered || 0);
-          animateCounter(document.getElementById('stat-media'), stats.totalMedia || 0);
-          animateCounter(document.getElementById('stat-voice'), stats.totalVoiceNotes || 0);
+          const el1 = document.getElementById('stat-messages'); if (el1) el1.textContent = stats.totalMessages || 0;
+          const el2 = document.getElementById('stat-deleted'); if (el2) el2.textContent = stats.deletedRecovered || 0;
+          const el3 = document.getElementById('stat-media'); if (el3) el3.textContent = stats.totalMedia || 0;
+          const el4 = document.getElementById('stat-voice'); if (el4) el4.textContent = stats.totalVoiceNotes || 0;
         }
 
         const msgResult = await this.bridge.getMessages({ filter: 'all' });
@@ -514,10 +514,10 @@ class WARecoveryApp {
   async loadDashboard() {
     const stats = await db.getStats();
 
-    animateCounter(document.getElementById('stat-messages'), stats.totalMessages);
-    animateCounter(document.getElementById('stat-deleted'), stats.deletedRecovered);
-    animateCounter(document.getElementById('stat-media'), stats.totalMedia);
-    animateCounter(document.getElementById('stat-voice'), stats.totalVoiceNotes);
+    const s1 = document.getElementById('stat-messages'); if (s1) s1.textContent = stats.totalMessages || 0;
+    const s2 = document.getElementById('stat-deleted'); if (s2) s2.textContent = stats.deletedRecovered || 0;
+    const s3 = document.getElementById('stat-media'); if (s3) s3.textContent = stats.totalMedia || 0;
+    const s4 = document.getElementById('stat-voice'); if (s4) s4.textContent = stats.totalVoiceNotes || 0;
 
     const storage = await mediaManager.getStorageUsage();
     const storageEl = document.getElementById('storage-used');
@@ -800,32 +800,53 @@ class WARecoveryApp {
       return;
     }
 
+    // Stop any currently playing audio
     Object.keys(this.audioPlayers).forEach(key => {
-      this.audioPlayers[key].pause();
+      if (this.audioPlayers[key] && this.audioPlayers[key].pause) this.audioPlayers[key].pause();
       delete this.audioPlayers[key];
     });
     document.querySelectorAll('.voice-play-btn .material-icons-round').forEach(i => i.textContent = 'play_arrow');
     document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
 
-    icon.textContent = 'pause';
-    let barIndex = 0;
-    const intervalTime = Math.max(50, Math.round(150 / speed));
+    // Get the audio source URL from the voice note data
+    const voiceItem = document.querySelector(`[data-voice-id="${voiceId}"]`);
+    const audioSrc = voiceItem ? voiceItem.dataset.audioUrl : null;
 
-    const animInterval = setInterval(() => {
-      if (barIndex >= bars.length) {
+    if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined') {
+      // No actual audio file available — notification-captured voice notes don't include audio data
+      showToast('⚠️ Voice note text was recovered but audio file is not available (notification capture only saves metadata).', 'info', 4000);
+      return;
+    }
+
+    // Play real audio file
+    try {
+      const audio = new Audio(audioSrc);
+      audio.playbackRate = speed;
+      audio.play();
+      icon.textContent = 'pause';
+
+      let barIndex = 0;
+      const intervalTime = Math.max(50, Math.round(150 / speed));
+      const animInterval = setInterval(() => {
+        if (barIndex >= bars.length) barIndex = 0;
+        bars.forEach(b => b.classList.remove('active'));
+        bars[barIndex].classList.add('active');
+        barIndex++;
+      }, intervalTime);
+
+      audio.onended = () => {
         clearInterval(animInterval);
         icon.textContent = 'play_arrow';
         bars.forEach(b => b.classList.remove('active'));
         delete this.audioPlayers[voiceId];
-        return;
-      }
-      bars[barIndex].classList.add('active');
-      barIndex++;
-    }, intervalTime);
+      };
 
-    this.audioPlayers[voiceId] = {
-      pause: () => clearInterval(animInterval)
-    };
+      this.audioPlayers[voiceId] = {
+        pause: () => { audio.pause(); clearInterval(animInterval); }
+      };
+    } catch (e) {
+      showToast('Could not play audio file.', 'error');
+    }
   }
 
   // =============================================

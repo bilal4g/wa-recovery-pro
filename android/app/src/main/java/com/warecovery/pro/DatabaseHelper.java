@@ -141,6 +141,29 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                               boolean isViewOnce, String mediaUrl, String thumbnail,
                               String notificationKey) {
         SQLiteDatabase db = getWritableDatabase();
+
+        // ── Deduplication: skip if same notification_key already exists ──
+        if (notificationKey != null) {
+            Cursor dup = db.rawQuery(
+                    "SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
+                    + " WHERE " + COL_NOTIFICATION_KEY + " = ? LIMIT 1",
+                    new String[]{notificationKey});
+            boolean exists = dup.moveToFirst();
+            dup.close();
+            if (exists) return -1;   // already captured — skip
+        }
+
+        // ── Also deduplicate by contact + text within 5-second window ──
+        long window = 5000; // 5 seconds
+        Cursor dup2 = db.rawQuery(
+                "SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
+                + " WHERE " + COL_CONTACT + " = ? AND " + COL_TEXT + " = ?"
+                + " AND ABS(" + COL_TIMESTAMP + " - ?) < ? LIMIT 1",
+                new String[]{contact, text, String.valueOf(timestamp), String.valueOf(window)});
+        boolean textDup = dup2.moveToFirst();
+        dup2.close();
+        if (textDup) return -1;      // same person, same text, within 5s — skip
+
         ContentValues values = new ContentValues();
         values.put(COL_CONTACT, contact);
         values.put(COL_TEXT, text);
