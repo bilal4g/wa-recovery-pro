@@ -264,6 +264,10 @@ public class FloatingAssistantService extends Service {
         menuCard = buildMenuCard();
         menuCard.setVisibility(View.GONE);
 
+        // 3. Floating Quick Preview Card
+        quickPreviewCard = buildQuickPreviewCard();
+        quickPreviewCard.setVisibility(View.GONE);
+
         // Touch listener for Drag & Drop + Tap toggle
         bubbleRoot.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
@@ -312,6 +316,7 @@ public class FloatingAssistantService extends Service {
 
         container.addView(bubbleRoot);
         container.addView(menuCard);
+        container.addView(quickPreviewCard);
         return container;
     }
 
@@ -525,6 +530,109 @@ public class FloatingAssistantService extends Service {
         }
     }
 
+    private LinearLayout quickPreviewCard;
+    private ImageView quickPreviewImg;
+    private Runnable hideQuickPreviewRunnable;
+
+    private LinearLayout buildQuickPreviewCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(20, 16, 20, 16);
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#1F2C34"));
+        cardBg.setCornerRadius(20f);
+        cardBg.setStroke(2, Color.parseColor("#00A884"));
+        card.setBackground(cardBg);
+        card.setElevation(24f);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(540, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 16, 0, 0);
+        card.setLayoutParams(cardParams);
+
+        quickPreviewImg = new ImageView(this);
+        quickPreviewImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        LinearLayout.LayoutParams imgParams = new LinearLayout.LayoutParams(110, 110);
+        imgParams.setMarginEnd(16);
+        quickPreviewImg.setLayoutParams(imgParams);
+        card.addView(quickPreviewImg);
+
+        LinearLayout contentCol = new LinearLayout(this);
+        contentCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams colParams = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1.0f);
+        contentCol.setLayoutParams(colParams);
+
+        TextView title = new TextView(this);
+        title.setText("📸 Screenshot Captured!");
+        title.setTextColor(Color.parseColor("#E9EDEF"));
+        title.setTextSize(13f);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        contentCol.addView(title);
+
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setPadding(0, 8, 0, 0);
+
+        Button btnOpen = new Button(this);
+        btnOpen.setText("Open");
+        btnOpen.setTextColor(Color.WHITE);
+        btnOpen.setTextSize(11f);
+        btnOpen.setAllCaps(false);
+        GradientDrawable openBg = new GradientDrawable();
+        openBg.setColor(Color.parseColor("#00A884"));
+        openBg.setCornerRadius(12f);
+        btnOpen.setBackground(openBg);
+        LinearLayout.LayoutParams pBtn = new LinearLayout.LayoutParams(140, 64);
+        pBtn.setMarginEnd(10);
+        btnOpen.setLayoutParams(pBtn);
+        btnOpen.setOnClickListener(v -> {
+            card.setVisibility(View.GONE);
+            Intent openIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (openIntent == null) openIntent = new Intent(this, MainActivity.class);
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(openIntent);
+        });
+        btnRow.addView(btnOpen);
+
+        Button btnDismiss = new Button(this);
+        btnDismiss.setText("✕");
+        btnDismiss.setTextColor(Color.parseColor("#8696A0"));
+        btnDismiss.setTextSize(12f);
+        GradientDrawable disBg = new GradientDrawable();
+        disBg.setColor(Color.parseColor("#2A3942"));
+        disBg.setCornerRadius(12f);
+        btnDismiss.setBackground(disBg);
+        LinearLayout.LayoutParams pDis = new LinearLayout.LayoutParams(64, 64);
+        btnDismiss.setLayoutParams(pDis);
+        btnDismiss.setOnClickListener(v -> card.setVisibility(View.GONE));
+        btnRow.addView(btnDismiss);
+
+        contentCol.addView(btnRow);
+        card.addView(contentCol);
+
+        return card;
+    }
+
+    private void showFloatingQuickPreview(Bitmap bitmap) {
+        new Handler(Looper.getMainLooper()).post(() -> {
+            if (quickPreviewCard == null || quickPreviewImg == null) return;
+            if (bitmap != null && !bitmap.isRecycled()) {
+                quickPreviewImg.setImageBitmap(bitmap);
+                if (menuCard != null) menuCard.setVisibility(View.GONE);
+                quickPreviewCard.setVisibility(View.VISIBLE);
+
+                if (hideQuickPreviewRunnable != null) {
+                    timerHandler.removeCallbacks(hideQuickPreviewRunnable);
+                }
+                hideQuickPreviewRunnable = () -> {
+                    if (quickPreviewCard != null) quickPreviewCard.setVisibility(View.GONE);
+                };
+                timerHandler.postDelayed(hideQuickPreviewRunnable, 5000);
+            }
+        });
+    }
+
     private boolean isCapturingScreenshot = false;
 
     private boolean isBitmapValid(Bitmap bitmap) {
@@ -532,16 +640,24 @@ public class FloatingAssistantService extends Service {
         try {
             int w = bitmap.getWidth();
             int h = bitmap.getHeight();
-            int[] sampleX = { w / 4, w / 2, (w * 3) / 4 };
-            int[] sampleY = { h / 4, h / 2, (h * 3) / 4 };
-            for (int x : sampleX) {
-                for (int y : sampleY) {
+            int nonZeroCount = 0;
+            // Sample a 5x5 grid (25 points)
+            for (int i = 1; i <= 5; i++) {
+                for (int j = 1; j <= 5; j++) {
+                    int x = (w * i) / 6;
+                    int y = (h * j) / 6;
                     int pixel = bitmap.getPixel(x, y);
-                    if ((pixel & 0x00FFFFFF) != 0) {
-                        return true;
+                    int alpha = Color.alpha(pixel);
+                    int red = Color.red(pixel);
+                    int green = Color.green(pixel);
+                    int blue = Color.blue(pixel);
+                    // Pixel is valid if not transparent and not pure pitch black (#000000)
+                    if (alpha > 0 && (red > 8 || green > 8 || blue > 8)) {
+                        nonZeroCount++;
                     }
                 }
             }
+            return nonZeroCount >= 2;
         } catch (Exception ignored) {}
         return false;
     }
@@ -577,6 +693,11 @@ public class FloatingAssistantService extends Service {
                             }
                             if (retrySnap != null && isBitmapValid(retrySnap)) {
                                 saveAndPublishScreenshot(retrySnap);
+                            } else {
+                                Log.w(TAG, "Screen frame is pure black or protected — ignoring");
+                                new Handler(Looper.getMainLooper()).post(() -> {
+                                    Toast.makeText(FloatingAssistantService.this, "⚠️ Screen is protected or dark — screenshot skipped", Toast.LENGTH_SHORT).show();
+                                });
                             }
                         } catch (Exception err) {
                             Log.e(TAG, "Retry screenshot error", err);
@@ -584,7 +705,7 @@ public class FloatingAssistantService extends Service {
                             isCapturingScreenshot = false;
                             if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
                         }
-                    }, 250);
+                    }, 300);
                 }
 
             } catch (Exception e) {
@@ -592,7 +713,7 @@ public class FloatingAssistantService extends Service {
                 isCapturingScreenshot = false;
                 if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
             }
-        }, 180);
+        }, 200);
     }
 
     private void saveAndPublishScreenshot(Bitmap bitmap) {
@@ -668,12 +789,13 @@ public class FloatingAssistantService extends Service {
                 bridge.onNativeEvent("mediaRecovered", "Screen Capture");
             }
 
-            // 5. Trigger Haptic Vibration & Notification
+            // 5. Trigger Haptic Vibration, Floating Quick Preview & Notification
             triggerHapticFeedback();
+            showFloatingQuickPreview(bitmap);
             showScreenshotNotification(targetFile, bitmap);
 
             new Handler(Looper.getMainLooper()).post(() -> {
-                Toast.makeText(FloatingAssistantService.this, "📸 Screenshot Saved! Tap notification to view", Toast.LENGTH_LONG).show();
+                Toast.makeText(FloatingAssistantService.this, "📸 Screenshot Saved!", Toast.LENGTH_SHORT).show();
             });
 
             Log.i(TAG, "Screenshot captured successfully: " + screenFile.getAbsolutePath());
@@ -722,10 +844,19 @@ public class FloatingAssistantService extends Service {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            // Intent to Share File
+            // Intent to Share File via FileProvider
+            Uri contentUri;
+            try {
+                Class<?> fpClass = Class.forName("androidx.core.content.FileProvider");
+                java.lang.reflect.Method getUri = fpClass.getMethod("getUriForFile", Context.class, String.class, File.class);
+                contentUri = (Uri) getUri.invoke(null, this, getPackageName() + ".fileprovider", file);
+            } catch (Exception e) {
+                contentUri = Uri.fromFile(file);
+            }
+
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("image/png");
-            shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
+            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
             shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             
             PendingIntent pShare = PendingIntent.getActivity(
@@ -771,16 +902,11 @@ public class FloatingAssistantService extends Service {
             stopVideoRecording();
         } else {
             if (menuCard != null) menuCard.setVisibility(View.GONE);
-
-            ensureMediaProjection();
-            if (mediaProjection != null) {
-                startRealVideoRecording();
-            } else {
-                Intent intent = new Intent(this, ScreenCaptureActivity.class);
-                intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(intent);
-            }
+            // On Android 14+, always request fresh permission to avoid SecurityException token reuse
+            Intent intent = new Intent(this, ScreenCaptureActivity.class);
+            intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
         }
     }
 

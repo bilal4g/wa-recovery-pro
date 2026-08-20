@@ -1,13 +1,13 @@
 {
-  "version": "2.0.0",
-  "build": 38,
+  "version": "2.0.1",
+  "build": 39,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.0 — Pure MediaProjection Engine & Android 14 Callback Compliance",
+  "title": "WA Recovery Pro v2.0.1 — Floating Quick Preview & Android 14 Single-Use Token Fix",
   "changelog": [
-    "🎥 Android 14 Callback Fixed: MediaProjection callback registered before VirtualDisplay creation to eliminate IllegalStateException",
-    "📸 Pure MediaProjection Capture: Clean, high-performance pixel screenshots without Accessibility Service requirements",
-    "🔄 Native Voice Sync: getVoiceNotes bridge syncs SQLite voice recordings with complete audio paths to Web UI",
-    "🔊 Real Audio Sharing: Direct .m4a audio file sharing to WhatsApp with full URI read permissions"
+    "📸 Floating Quick Preview: Instant interactive thumbnail popup attached to the bubble after capturing screenshot",
+    "🛡️ Black Frame Filter: 25-point matrix validation ignores black/dark GPU frames and skips protected screens",
+    "🎥 Fresh Token Video Recording: Compliant with Android 14 single-use token lifecycle to eliminate SecurityException",
+    "📤 FileProvider Notification Sharing: Seamless screenshot preview and direct sharing from system notification"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
