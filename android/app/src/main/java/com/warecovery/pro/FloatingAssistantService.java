@@ -161,6 +161,7 @@ public class FloatingAssistantService extends Service {
         if (isRecordingVideo) {
             stopVideoRecording();
         }
+        cleanupPersistentMirror();
         if (mediaProjection != null) {
             try { mediaProjection.stop(); } catch (Exception ignored) {}
             mediaProjection = null;
@@ -376,8 +377,14 @@ public class FloatingAssistantService extends Service {
         }
     }
 
+    // Persistent Screen Mirror State (Eliminates repeated prompts)
+    private ImageReader persistentImageReader;
+    private VirtualDisplay persistentVirtualDisplay;
+    private Bitmap latestScreenBitmap;
+    private final Object bitmapLock = new Object();
+
     // =============================================
-    // MEDIAPROJECTION CALLBACK
+    // MEDIAPROJECTION CALLBACK & PERSISTENT MIRROR
     // =============================================
 
     public void onMediaProjectionGranted(int resultCode, Intent data, String action) {
@@ -388,6 +395,19 @@ public class FloatingAssistantService extends Service {
         if (mgr != null) {
             try {
                 this.mediaProjection = mgr.getMediaProjection(resultCode, (Intent) data.clone());
+                
+                if (this.mediaProjection != null) {
+                    this.mediaProjection.registerCallback(new MediaProjection.Callback() {
+                        @Override
+                        public void onStop() {
+                            Log.i(TAG, "MediaProjection stopped");
+                            cleanupPersistentMirror();
+                            mediaProjection = null;
+                        }
+                    }, timerHandler);
+
+                    initPersistentScreenMirror();
+                }
             } catch (Exception e) {
                 Log.e(TAG, "Error obtaining MediaProjection", e);
             }
@@ -396,7 +416,68 @@ public class FloatingAssistantService extends Service {
         if (ScreenCaptureActivity.ACTION_VIDEO.equals(action)) {
             startRealVideoRecording();
         } else {
-            captureRealPixelScreenshot();
+            // First instant capture right after grant
+            timerHandler.postDelayed(this::captureRealPixelScreenshot, 350);
+        }
+    }
+
+    private void initPersistentScreenMirror() {
+        if (mediaProjection == null) return;
+        try {
+            cleanupPersistentMirror();
+
+            DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int w = metrics.widthPixels;
+            int h = metrics.heightPixels;
+            int density = metrics.densityDpi;
+
+            persistentImageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 3);
+            persistentVirtualDisplay = mediaProjection.createVirtualDisplay(
+                    "WARecovery_PersistentMirror",
+                    w, h, density,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    persistentImageReader.getSurface(), null, timerHandler
+            );
+
+            persistentImageReader.setOnImageAvailableListener(reader -> {
+                Image image = null;
+                try {
+                    image = reader.acquireLatestImage();
+                    if (image != null) {
+                        Image.Plane[] planes = image.getPlanes();
+                        ByteBuffer buffer = planes[0].getBuffer();
+                        int pixelStride = planes[0].getPixelStride();
+                        int rowStride = planes[0].getRowStride();
+                        int rowPadding = rowStride - pixelStride * w;
+
+                        Bitmap bitmap = Bitmap.createBitmap(w + rowPadding / pixelStride, h, Bitmap.Config.ARGB_8888);
+                        bitmap.copyPixelsFromBuffer(buffer);
+
+                        synchronized (bitmapLock) {
+                            latestScreenBitmap = Bitmap.createBitmap(bitmap, 0, 0, w, h);
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error updating screen frame", e);
+                } finally {
+                    if (image != null) image.close();
+                }
+            }, timerHandler);
+
+            Log.i(TAG, "Persistent screen mirror initialized: 0-prompt instant capture active");
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to init persistent screen mirror", e);
+        }
+    }
+
+    private void cleanupPersistentMirror() {
+        if (persistentVirtualDisplay != null) {
+            try { persistentVirtualDisplay.release(); } catch (Exception ignored) {}
+            persistentVirtualDisplay = null;
+        }
+        if (persistentImageReader != null) {
+            try { persistentImageReader.close(); } catch (Exception ignored) {}
+            persistentImageReader = null;
         }
     }
 
@@ -407,7 +488,7 @@ public class FloatingAssistantService extends Service {
     private void takeInstantScreenshot() {
         if (menuCard != null) menuCard.setVisibility(View.GONE);
 
-        if (mediaProjection == null) {
+        if (mediaProjection == null || persistentVirtualDisplay == null) {
             Intent intent = new Intent(this, ScreenCaptureActivity.class);
             intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -422,61 +503,34 @@ public class FloatingAssistantService extends Service {
 
         timerHandler.postDelayed(() -> {
             try {
-                if (mediaProjection == null && projData != null) {
-                    MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-                    if (mgr != null) mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
+                Bitmap snap = null;
+                synchronized (bitmapLock) {
+                    if (latestScreenBitmap != null && !latestScreenBitmap.isRecycled()) {
+                        snap = latestScreenBitmap.copy(latestScreenBitmap.getConfig(), false);
+                    }
                 }
 
-                if (mediaProjection == null) {
-                    if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+                if (snap != null) {
+                    saveAndPublishScreenshot(snap);
+                } else {
+                    // If mirror is fresh, wait 200ms and grab
+                    timerHandler.postDelayed(() -> {
+                        synchronized (bitmapLock) {
+                            if (latestScreenBitmap != null && !latestScreenBitmap.isRecycled()) {
+                                saveAndPublishScreenshot(latestScreenBitmap.copy(latestScreenBitmap.getConfig(), false));
+                            }
+                        }
+                        if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+                    }, 200);
                     return;
                 }
 
-                DisplayMetrics metrics = getResources().getDisplayMetrics();
-                int w = metrics.widthPixels;
-                int h = metrics.heightPixels;
-                int density = metrics.densityDpi;
-
-                ImageReader imageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
-                VirtualDisplay virtualDisplay = mediaProjection.createVirtualDisplay(
-                        "WARecovery_Screen",
-                        w, h, density,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        imageReader.getSurface(), null, null
-                );
-
-                imageReader.setOnImageAvailableListener(reader -> {
-                    Image image = null;
-                    try {
-                        image = reader.acquireLatestImage();
-                        if (image != null) {
-                            Image.Plane[] planes = image.getPlanes();
-                            ByteBuffer buffer = planes[0].getBuffer();
-                            int pixelStride = planes[0].getPixelStride();
-                            int rowStride = planes[0].getRowStride();
-                            int rowPadding = rowStride - pixelStride * w;
-
-                            Bitmap bitmap = Bitmap.createBitmap(w + rowPadding / pixelStride, h, Bitmap.Config.ARGB_8888);
-                            bitmap.copyPixelsFromBuffer(buffer);
-
-                            Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, w, h);
-                            saveAndPublishScreenshot(cropped);
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error capturing screen frame", e);
-                    } finally {
-                        if (image != null) image.close();
-                        imageReader.close();
-                        if (virtualDisplay != null) virtualDisplay.release();
-                        if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
-                    }
-                }, timerHandler);
-
             } catch (Exception e) {
                 Log.e(TAG, "Failed real screenshot", e);
+            } finally {
                 if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
             }
-        }, 300);
+        }, 150);
     }
 
     private void saveAndPublishScreenshot(Bitmap bitmap) {

@@ -1,14 +1,13 @@
 {
-  "version": "1.8.0",
-  "build": 21,
+  "version": "1.8.1",
+  "build": 22,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.0 — Multi-Select, Batch Delete & Multi-Item Sharing",
+  "title": "WA Recovery Pro v1.8.1 — Persistent 0-Prompt Screen Capture & Live Mirror",
   "changelog": [
-    "☑️ Multi-Select Action Bar: Long-press or tap select icon to select multiple chats, messages, media, or voice notes",
-    "🗑️ Batch & 1-Tap Deletion: Delete individual messages, whole conversations, or batch selected media with confirmation",
-    "📤 Multi-Item & Native Sharing: Share selected messages, photos, videos, or voice notes directly to WhatsApp",
-    "📸 Real MediaProjection Engine: Pixel-perfect screen capture & full MP4 video recording",
-    "🛡️ Strict Real-Time Guard: 100% blocks old device media from importing"
+    "🚀 Persistent 0-Prompt Screen Capture: Approve screen share once, take unlimited instant screenshots with zero repeat prompts",
+    "⚡ Instant 0ms Pixel Capture: Live virtual mirror grabs frames directly from the display buffer",
+    "☑️ Multi-Select & Batch Actions: Select & delete/share multiple messages, chats, media, and voice notes",
+    "🗑️ 1-Tap Message & Voice Deletion with confirmation"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
