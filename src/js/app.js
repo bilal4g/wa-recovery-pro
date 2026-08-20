@@ -102,8 +102,10 @@ class WARecoveryApp {
   // =============================================
 
   async syncNativeData() {
-    if (this.bridge) {
-      try {
+    if (this._syncInProgress) return;
+    this._syncInProgress = true;
+    try {
+      if (this.bridge) {
         const stats = await this.bridge.getStats();
         if (stats) {
           const el1 = document.getElementById('stat-messages'); if (el1) el1.textContent = stats.totalMessages || 0;
@@ -114,33 +116,37 @@ class WARecoveryApp {
 
         const msgResult = await this.bridge.getMessages({ filter: 'all' });
         if (msgResult && msgResult.messages) {
-          const nativeMessages = JSON.parse(msgResult.messages);
-          for (const m of nativeMessages) {
-            await db.addMessage({
-              contact: m.contact,
-              text: m.text,
-              type: m.type,
-              timestamp: m.timestamp,
-              isDeleted: !!m.is_deleted,
-              direction: m.direction || 'received',
-              groupName: m.group_name,
-              isViewOnce: !!m.is_view_once,
-              thumbnailBase64: m.thumbnail || m.thumbnail_base64 || m.media_url,
-              mediaThumbnail: m.thumbnail || m.thumbnail_base64 || m.media_url,
-              mediaUrl: m.media_url || m.thumbnail
-            });
+          const nativeMessages = typeof msgResult.messages === 'string' ? JSON.parse(msgResult.messages) : msgResult.messages;
+          if (Array.isArray(nativeMessages)) {
+            for (const m of nativeMessages) {
+              await db.addMessage({
+                contact: m.contact,
+                text: m.text,
+                type: m.type,
+                timestamp: m.timestamp,
+                isDeleted: !!m.is_deleted,
+                direction: m.direction || 'received',
+                groupName: m.group_name,
+                isViewOnce: !!m.is_view_once,
+                thumbnailBase64: m.thumbnail || m.thumbnail_base64 || m.media_url,
+                mediaThumbnail: m.thumbnail || m.thumbnail_base64 || m.media_url,
+                mediaUrl: m.media_url || m.thumbnail
+              });
+            }
           }
         }
-      } catch (err) {
-        console.log('Sync error:', err);
       }
-    }
 
-    // Refresh current page view
-    if (this.currentPage === 'dashboard') await this.loadDashboard();
-    else if (this.currentPage === 'messages') await this.loadMessages();
-    else if (this.currentPage === 'media') await this.loadMediaGrid();
-    else if (this.currentPage === 'voice') await this.loadVoiceNotes();
+      // Refresh current page view
+      if (this.currentPage === 'dashboard') await this.loadDashboard();
+      else if (this.currentPage === 'messages') await this.loadMessages();
+      else if (this.currentPage === 'media') await this.loadMediaGrid();
+      else if (this.currentPage === 'voice') await this.loadVoiceNotes();
+    } catch (err) {
+      console.log('Sync error:', err);
+    } finally {
+      this._syncInProgress = false;
+    }
   }
 
   openDirectImage(src, contact = 'Recovered Photo') {

@@ -1,14 +1,14 @@
 {
-  "version": "1.6.2",
-  "build": 15,
+  "version": "1.6.3",
+  "build": 16,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.6.2 — Microphone Permission & Spy Bubble Fixes!",
+  "title": "WA Recovery Pro v1.6.3 — Zero Freeze (ANR) & Performance Engine",
   "changelog": [
-    "🎙️ Added official Android Microphone Permission popup on Launch",
-    "🔙 Android Hardware & Gesture Back Button support for closing chats and modals",
-    "🛡️ 100% crash-proof Floating Assistant with safe overlay checks",
-    "📱 Real Android Native Share Sheet intent for sharing messages & audio",
-    "🎈 Floating Spy Bubble for live View-Once audio recording"
+    "⚡ Fixed 'WA Recovery Pro isn't responding' by offloading media scanning to background thread",
+    "⚡ High-performance O(1) in-memory message caching (0 UI freeze)",
+    "🎙️ Automatic Android Microphone Permission dialog prompt",
+    "🔙 Hardware and gesture Back button support (close chats & modals)",
+    "🎈 Floating Spy Bubble for live View-Once audio capture"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

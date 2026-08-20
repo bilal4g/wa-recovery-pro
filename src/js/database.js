@@ -78,13 +78,18 @@ class RecoveryDatabase {
 
   async addMessage(message) {
     await this._ready;
-    const existing = await this._getAll('messages');
-    const isDup = existing.some(m =>
-      m.contact === message.contact &&
-      m.text === message.text &&
-      Math.abs((m.timestamp || 0) - (message.timestamp || 0)) < 5000
-    );
-    if (isDup) return null;
+    if (!this._seenMsgKeys) {
+      this._seenMsgKeys = new Set();
+      const existing = await this._getAll('messages');
+      existing.forEach(m => {
+        const k = `${m.contact}|${m.text}|${Math.round((m.timestamp || 0) / 5000)}`;
+        this._seenMsgKeys.add(k);
+      });
+    }
+
+    const key = `${message.contact}|${message.text}|${Math.round((message.timestamp || 0) / 5000)}`;
+    if (this._seenMsgKeys.has(key)) return null;
+    this._seenMsgKeys.add(key);
 
     const photoSrc = message.mediaThumbnail || message.mediaUrl || message.thumbnailBase64 || null;
 
@@ -104,14 +109,14 @@ class RecoveryDatabase {
     };
 
     if (photoSrc && (msg.type === 'image' || msg.isViewOnce)) {
-      await this.addMedia({
+      this.addMedia({
         contact: msg.contact,
         mediaType: 'image',
         url: photoSrc,
         thumbnail: photoSrc,
         timestamp: msg.timestamp,
         isDeleted: msg.isDeleted
-      });
+      }).catch(() => {});
     }
 
     return this._add('messages', msg);

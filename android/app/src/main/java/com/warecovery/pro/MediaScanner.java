@@ -55,18 +55,25 @@ public class MediaScanner {
 
     /**
      * Start real-time monitoring via Linux kernel inotify events (0% CPU, 0% battery impact).
+     * Runs in a background thread to ensure 0 main-thread blocking (prevents ANR).
      */
     public void startScanning() {
         if (isRunning) return;
         isRunning = true;
 
-        // 1. Initial scan on app start
-        performFullScan();
+        Executors.newSingleThreadExecutor().execute(() -> {
+            try {
+                // 1. Initial scan on app start in background thread
+                performFullScan();
 
-        // 2. Set up recursive kernel inotify FileObservers (sleeps until file is written)
-        setupAllObservers();
+                // 2. Set up recursive kernel inotify FileObservers (sleeps until file is written)
+                setupAllObservers();
 
-        Log.i(TAG, "MediaScanner active via battery-efficient kernel inotify");
+                Log.i(TAG, "MediaScanner active via battery-efficient kernel inotify");
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting MediaScanner background scan", e);
+            }
+        });
     }
 
     /**
