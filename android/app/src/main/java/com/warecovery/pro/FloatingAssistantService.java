@@ -15,9 +15,11 @@ import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaRecorder;
 import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.util.Base64;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -29,6 +31,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 
@@ -573,6 +576,27 @@ public class FloatingAssistantService extends Service {
                 out.flush();
                 out.close();
 
+                // Generate Base64 thumbnail for instant web UI preview
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+                String base64 = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+
+                // 1. Insert into Messages table (so it appears in Dashboard & Chats)
+                dbHelper.insertMessage(
+                        "Screen Capture",
+                        "📸 Captured Screenshot",
+                        "image",
+                        timestamp,
+                        "received",
+                        null,
+                        false,
+                        true,
+                        base64,
+                        screenFile.getAbsolutePath(),
+                        "screen_" + timestamp
+                );
+
+                // 2. Insert into Media table (so it appears in Media -> Photos)
                 dbHelper.insertMedia(
                         "Screen Capture",
                         "image",
@@ -580,17 +604,37 @@ public class FloatingAssistantService extends Service {
                         fileName,
                         screenFile.length(),
                         "image/png",
-                        null,
+                        base64,
                         timestamp,
                         true
                 );
 
+                // 3. Save copy to Phone Gallery (Pictures/WARecovery)
+                try {
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
+                    if (!pubDir.exists()) pubDir.mkdirs();
+                    File pubFile = new File(pubDir, fileName);
+                    FileOutputStream pubOut = new FileOutputStream(pubFile);
+                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, pubOut);
+                    pubOut.flush();
+                    pubOut.close();
+
+                    android.media.MediaScannerConnection.scanFile(
+                            this,
+                            new String[]{pubFile.getAbsolutePath()},
+                            new String[]{"image/png"},
+                            null
+                    );
+                } catch (Exception ignored) {}
+
+                // 4. Notify Web Layer
                 RecoveryBridge bridge = RecoveryBridge.getInstance();
                 if (bridge != null) {
                     bridge.onNativeEvent("newMessage", "Screen Capture");
+                    bridge.onNativeEvent("mediaRecovered", "Screen Capture");
                 }
 
-                Toast.makeText(this, "📸 Screenshot captured & saved to Photos!", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "📸 Screenshot captured & saved to Photos & Gallery!", Toast.LENGTH_LONG).show();
                 Log.i(TAG, "Screenshot captured to: " + screenFile.getAbsolutePath());
 
             } catch (Exception e) {
