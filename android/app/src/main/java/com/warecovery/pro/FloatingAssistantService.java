@@ -40,8 +40,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.core.app.NotificationCompat;
-
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -668,13 +666,8 @@ public class FloatingAssistantService extends Service {
             // Intent to Share File
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType("image/png");
-            try {
-                Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                        this, getPackageName() + ".fileprovider", file
-                );
-                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception ignored) {}
+            shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             
             PendingIntent pShare = PendingIntent.getActivity(
                     this, (int) System.currentTimeMillis() + 1,
@@ -682,19 +675,23 @@ public class FloatingAssistantService extends Service {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-                    .setSmallIcon(android.R.drawable.ic_menu_camera)
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(this, channelId);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+
+            builder.setSmallIcon(android.R.drawable.ic_menu_camera)
                     .setContentTitle("📸 Screenshot Captured!")
                     .setContentText("Saved to Gallery & WA Recovery Pro · Tap to view")
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setDefaults(NotificationCompat.DEFAULT_ALL)
                     .setAutoCancel(true)
                     .setContentIntent(pOpen)
                     .addAction(android.R.drawable.ic_menu_share, "Share", pShare)
                     .addAction(android.R.drawable.ic_menu_view, "Open in App", pOpen);
 
-            if (bitmap != null && !bitmap.isRecycled()) {
-                builder.setStyle(new NotificationCompat.BigPictureStyle()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN && bitmap != null && !bitmap.isRecycled()) {
+                builder.setStyle(new Notification.BigPictureStyle()
                         .bigPicture(bitmap)
                         .setSummaryText("Saved to Gallery & WA Recovery Pro"));
             }
@@ -1054,13 +1051,8 @@ public class FloatingAssistantService extends Service {
 
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);
-            try {
-                Uri uri = androidx.core.content.FileProvider.getUriForFile(
-                        this, getPackageName() + ".fileprovider", file
-                );
-                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
-                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            } catch (Exception ignored) {}
+            shareIntent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(file));
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
 
             PendingIntent pShare = PendingIntent.getActivity(
                     this, (int) System.currentTimeMillis() + 1,
@@ -1068,12 +1060,16 @@ public class FloatingAssistantService extends Service {
                     PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
             );
 
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
-                    .setSmallIcon(mimeType.startsWith("video") ? android.R.drawable.ic_media_play : android.R.drawable.ic_btn_speak_now)
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(this, channelId);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+
+            builder.setSmallIcon(mimeType.startsWith("video") ? android.R.drawable.ic_media_play : android.R.drawable.ic_btn_speak_now)
                     .setContentTitle(title)
                     .setContentText(text)
-                    .setPriority(NotificationCompat.PRIORITY_HIGH)
-                    .setDefaults(NotificationCompat.DEFAULT_ALL)
                     .setAutoCancel(true)
                     .setContentIntent(pOpen)
                     .addAction(android.R.drawable.ic_menu_share, "Share", pShare)
