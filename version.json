@@ -1,13 +1,13 @@
 {
-  "version": "1.3.4",
-  "build": 8,
+  "version": "1.3.5",
+  "build": 9,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.3.4 — Custom Wallpaper Update!",
+  "title": "WA Recovery Pro v1.3.5 — Background & Viewer Update!",
   "changelog": [
-    "🖼️ Custom Wallpaper Background Theme (bg.jpeg)",
-    "📷 Instant Full-Screen Photo Viewer",
+    "🖼️ Translucent Glassmorphic Wallpaper Theme (bg.jpeg)",
+    "📷 1-Tap Full-Screen Photo Lightbox Viewer",
     "🛡️ 100% Zero-Duplicate Message Engine",
-    "⚡ Instant 0ms App Launch"
+    "⚡ Fast 0ms Launch Engine"
   ],
   "hasLivePatch": true,
   "patchSize": "240 KB",
