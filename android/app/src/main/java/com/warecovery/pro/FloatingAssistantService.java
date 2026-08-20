@@ -239,22 +239,22 @@ public class FloatingAssistantService extends Service {
         cardParams.setMargins(0, 12, 0, 0);
 
         TextView menuTitle = new TextView(this);
-        menuTitle.setText("🎙️ View-Once Capture");
+        menuTitle.setText("🛡️ View-Once Spy Assistant");
         menuTitle.setTextColor(Color.WHITE);
         menuTitle.setTextSize(14f);
         menuTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
         menuCard.addView(menuTitle);
 
         TextView menuDesc = new TextView(this);
-        menuDesc.setText("Tap Record, then play the View-Once voice note on speaker.");
+        menuDesc.setText("Select what you want to capture:");
         menuDesc.setTextColor(Color.parseColor("#8696A0"));
         menuDesc.setTextSize(11f);
-        menuDesc.setPadding(0, 4, 0, 16);
+        menuDesc.setPadding(0, 4, 0, 12);
         menuCard.addView(menuDesc);
 
-        // Action Button: Record Audio
+        // Action Button 1: Record Audio Only (Voice Notes)
         btnRecordAudio = new Button(this);
-        btnRecordAudio.setText("🔴 Start Recording");
+        btnRecordAudio.setText("🎙️ Record Voice (Audio Only)");
         btnRecordAudio.setTextColor(Color.WHITE);
         btnRecordAudio.setTextSize(12f);
         GradientDrawable btnBg = new GradientDrawable();
@@ -264,6 +264,27 @@ public class FloatingAssistantService extends Service {
         btnRecordAudio.setPadding(16, 12, 16, 12);
         btnRecordAudio.setOnClickListener(v -> toggleRecording());
         menuCard.addView(btnRecordAudio);
+
+        // Action Button 2: Quick Screenshot Helper
+        Button btnScreenshot = new Button(this);
+        btnScreenshot.setText("📸 Take Screenshot Guide");
+        btnScreenshot.setTextColor(Color.WHITE);
+        btnScreenshot.setTextSize(12f);
+        GradientDrawable shotBg = new GradientDrawable();
+        shotBg.setColor(Color.parseColor("#2563EB"));
+        shotBg.setCornerRadius(16f);
+        btnScreenshot.setBackground(shotBg);
+        btnScreenshot.setPadding(16, 12, 16, 12);
+        LinearLayout.LayoutParams shotParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        shotParams.setMargins(0, 8, 0, 0);
+        btnScreenshot.setLayoutParams(shotParams);
+        btnScreenshot.setOnClickListener(v -> {
+            Toast.makeText(this, "📸 Use Power + Volume Down to screenshot photos instantly!", Toast.LENGTH_LONG).show();
+            menuCard.setVisibility(View.GONE);
+        });
+        menuCard.addView(btnScreenshot);
 
         // Close Menu Button
         btnCloseMenu = new Button(this);
