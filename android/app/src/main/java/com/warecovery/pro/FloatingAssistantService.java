@@ -364,6 +364,15 @@ public class FloatingAssistantService extends Service {
 
     @SuppressLint("SetTextI18n")
     private void startAudioRecording() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(this, "🎙️ Microphone permission required! Opening WA Recovery Pro...", Toast.LENGTH_LONG).show();
+            Intent appIntent = new Intent(this, MainActivity.class);
+            appIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(appIntent);
+            return;
+        }
+
         try {
             File dir = new File(getFilesDir(), "recovered_voices");
             if (!dir.exists()) dir.mkdirs();

@@ -10,11 +10,14 @@ import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
 
+import android.Manifest;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -32,7 +35,13 @@ import java.util.List;
  * Capacitor Plugin Bridge that connects the native Android recovery services
  * to the web UI layer. All native functions are exposed via @PluginMethod.
  */
-@CapacitorPlugin(name = "RecoveryBridge")
+@CapacitorPlugin(
+    name = "RecoveryBridge",
+    permissions = {
+        @Permission(strings = { Manifest.permission.RECORD_AUDIO }, alias = "microphone"),
+        @Permission(strings = { Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE }, alias = "storage")
+    }
+)
 public class RecoveryBridge extends Plugin {
 
     private static final String TAG = "WARecovery_Bridge";
@@ -628,6 +637,47 @@ public class RecoveryBridge extends Plugin {
         boolean granted = true;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             granted = Settings.canDrawOverlays(getContext());
+        }
+        JSObject res = new JSObject();
+        res.put("granted", granted);
+        call.resolve(res);
+    }
+
+    /**
+     * Check if Microphone (RECORD_AUDIO) runtime permission is granted.
+     */
+    @PluginMethod()
+    public void isAudioPermissionGranted(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            granted = getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        }
+        JSObject res = new JSObject();
+        res.put("granted", granted);
+        call.resolve(res);
+    }
+
+    /**
+     * Request Microphone runtime permission popup.
+     */
+    @PluginMethod()
+    public void requestAudioPermission(PluginCall call) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionForAlias("microphone", call, "microphoneCallback");
+                return;
+            }
+        }
+        JSObject res = new JSObject();
+        res.put("granted", true);
+        call.resolve(res);
+    }
+
+    @PermissionCallback
+    private void microphoneCallback(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            granted = getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
         }
         JSObject res = new JSObject();
         res.put("granted", granted);

@@ -1062,6 +1062,7 @@ class WARecoveryApp {
       }
       try {
         if (shouldStart) {
+          // 1. Check & Request Overlay Permission (Display over other apps)
           const perm = await this.bridge.checkOverlayPermission();
           if (!perm || !perm.granted) {
             showToast('⚠️ Please allow "Display over other apps" permission', 'warning', 3000);
@@ -1069,6 +1070,21 @@ class WARecoveryApp {
             if (toggleFloating) toggleFloating.checked = false;
             return;
           }
+
+          // 2. Check & Request Microphone Permission (Triggers Android System Popup)
+          try {
+            const micPerm = await this.bridge.isAudioPermissionGranted();
+            if (!micPerm || !micPerm.granted) {
+              showToast('🎙️ Please allow Microphone permission to record voice notes', 'info', 2000);
+              const reqRes = await this.bridge.requestAudioPermission();
+              if (!reqRes || !reqRes.granted) {
+                showToast('⚠️ Microphone permission is required to record audio', 'warning', 3000);
+              }
+            }
+          } catch (micErr) {
+            console.log('Mic perm check error:', micErr);
+          }
+
           const res = await this.bridge.startFloatingAssistant();
           if (res && res.success) {
             showToast('🎈 Floating Spy Bubble is active! Open WhatsApp to capture', 'success', 3500);

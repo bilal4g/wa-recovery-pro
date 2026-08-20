@@ -1,14 +1,14 @@
 {
-  "version": "1.6.1",
-  "build": 14,
+  "version": "1.6.2",
+  "build": 15,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.6.1 — Back Gesture & Floating Fixes!",
+  "title": "WA Recovery Pro v1.6.2 — Microphone Permission & Spy Bubble Fixes!",
   "changelog": [
-    "🔙 Added Android Hardware & Gesture Back Button handling (closes chats, modals & lightboxes)",
-    "🛡️ Hardened Floating Assistant with complete crash prevention & safe overlay checks",
-    "📱 Native Android Share Sheet intent for true direct sharing to apps",
-    "🎈 Floating Capture Assistant for live View-Once voice note recording",
-    "📄 Multi-Format Chat Export (TXT, HTML, PDF)"
+    "🎙️ Added official Android Microphone Permission popup on Launch",
+    "🔙 Android Hardware & Gesture Back Button support for closing chats and modals",
+    "🛡️ 100% crash-proof Floating Assistant with safe overlay checks",
+    "📱 Real Android Native Share Sheet intent for sharing messages & audio",
+    "🎈 Floating Spy Bubble for live View-Once audio recording"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
