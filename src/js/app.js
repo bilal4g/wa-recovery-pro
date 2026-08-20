@@ -44,6 +44,7 @@ class WARecoveryApp {
     this._initChatDetail();
     this._initOnboarding();
     this._initHeaderButtons();
+    this._initBackButtonHandler();
 
     // Listen for native events (new WhatsApp messages / deleted messages)
     if (this.bridge) {
@@ -513,6 +514,98 @@ class WARecoveryApp {
     }
   }
 
+  // =============================================
+  // HARDWARE & GESTURE BACK BUTTON HANDLER
+  // =============================================
+
+  _initBackButtonHandler() {
+    // 1. Android Capacitor Native Back Button Event
+    const appPlugin = window.Capacitor?.Plugins?.App;
+    if (appPlugin) {
+      try {
+        appPlugin.addListener('backButton', () => {
+          this._handleBackPress();
+        });
+      } catch (e) {
+        console.log('Back button listener error:', e);
+      }
+    }
+
+    // 2. Browser / WebView History Popstate Event
+    window.addEventListener('popstate', () => {
+      this._handleBackPress(true);
+    });
+  }
+
+  _handleBackPress(fromPopstate = false) {
+    // Check 1: Is Lightbox open?
+    const lightbox = document.getElementById('media-lightbox');
+    if (lightbox && !lightbox.classList.contains('hidden')) {
+      mediaManager.closeLightbox();
+      return true;
+    }
+
+    // Check 2: Is Export Modal open?
+    const exportModal = document.getElementById('export-modal-overlay');
+    if (exportModal && !exportModal.classList.contains('hidden')) {
+      exportManager.closeExportModal();
+      return true;
+    }
+
+    // Check 3: Is Voice Options Sheet open?
+    const voiceOverlay = document.getElementById('voice-options-overlay');
+    if (voiceOverlay && !voiceOverlay.classList.contains('hidden')) {
+      voiceOptions.closeOptions();
+      return true;
+    }
+
+    // Check 4: Is Update Modal open?
+    const updateModal = document.getElementById('update-modal-overlay');
+    if (updateModal && !updateModal.classList.contains('hidden')) {
+      updateModal.classList.add('hidden');
+      return true;
+    }
+
+    // Check 5: Is Onboarding Modal open?
+    const onboardingModal = document.getElementById('onboarding-modal');
+    if (onboardingModal && !onboardingModal.classList.contains('hidden')) {
+      this.hideOnboarding();
+      return true;
+    }
+
+    // Check 6: Is Confirmation Modal open?
+    const confirmModal = document.getElementById('modal-overlay');
+    if (confirmModal && !confirmModal.classList.contains('hidden')) {
+      confirmModal.classList.add('hidden');
+      return true;
+    }
+
+    // Check 7: Is Chat Detail view open?
+    const chatDetail = document.getElementById('chat-detail');
+    if (chatDetail && !chatDetail.classList.contains('hidden')) {
+      this.closeChat();
+      return true;
+    }
+
+    // Check 8: If on a sub-page, return to dashboard
+    if (this.currentPage !== 'dashboard') {
+      this.navigateTo('dashboard');
+      return true;
+    }
+
+    // If on Dashboard, double tap back to exit
+    const appPlugin = window.Capacitor?.Plugins?.App;
+    if (appPlugin && !fromPopstate) {
+      if (this._lastBackPress && (Date.now() - this._lastBackPress < 2000)) {
+        appPlugin.exitApp();
+      } else {
+        this._lastBackPress = Date.now();
+        showToast('Press back again to exit', 'info', 2000);
+      }
+    }
+    return false;
+  }
+
   _initHeaderButtons() {
     const btnUpdates = document.getElementById('btn-check-updates');
     if (btnUpdates) {
@@ -659,6 +752,10 @@ class WARecoveryApp {
       messagesContainer.innerHTML = messages.map(m => renderMessageBubble(m)).join('');
     }
     if (detail) detail.classList.remove('hidden');
+
+    try {
+      history.pushState({ view: 'chat', contact: contactName }, '');
+    } catch (ignored) {}
 
     setTimeout(() => {
       if (messagesContainer) messagesContainer.scrollTop = messagesContainer.scrollHeight;

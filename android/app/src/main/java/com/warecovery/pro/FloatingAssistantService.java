@@ -79,8 +79,18 @@ public class FloatingAssistantService extends Service {
             return START_NOT_STICKY;
         }
 
-        startForeground(NOTIF_ID, buildForegroundNotification());
-        showFloatingBubble();
+        try {
+            startForeground(NOTIF_ID, buildForegroundNotification());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to startForeground: " + e.getMessage());
+        }
+
+        try {
+            showFloatingBubble();
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to show floating bubble: " + e.getMessage());
+            stopSelf();
+        }
         return START_STICKY;
     }
 
@@ -90,67 +100,91 @@ public class FloatingAssistantService extends Service {
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "Floating Capture Assistant",
-                    NotificationManager.IMPORTANCE_LOW
-            );
-            channel.setDescription("Floating bubble to capture View-Once voice notes & media");
-            NotificationManager manager = getSystemService(NotificationManager.class);
-            if (manager != null) {
-                manager.createNotificationChannel(channel);
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                        CHANNEL_ID,
+                        "Floating Capture Assistant",
+                        NotificationManager.IMPORTANCE_LOW
+                );
+                channel.setDescription("Floating bubble to capture View-Once voice notes & media");
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager != null) {
+                    manager.createNotificationChannel(channel);
+                }
             }
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating notification channel", e);
         }
     }
 
     private Notification buildForegroundNotification() {
-        Intent notificationIntent = new Intent(this, MainActivity.class);
-        PendingIntent pendingIntent = PendingIntent.getActivity(
-                this, 0, notificationIntent,
-                PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-        );
+        try {
+            Intent notificationIntent = new Intent(this, MainActivity.class);
+            PendingIntent pendingIntent = PendingIntent.getActivity(
+                    this, 0, notificationIntent,
+                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
+            );
 
-        Notification.Builder builder;
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            builder = new Notification.Builder(this, CHANNEL_ID);
-        } else {
-            builder = new Notification.Builder(this);
+            Notification.Builder builder;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                builder = new Notification.Builder(this, CHANNEL_ID);
+            } else {
+                builder = new Notification.Builder(this);
+            }
+
+            return builder
+                    .setContentTitle("WA Recovery Pro — Floating Assistant")
+                    .setContentText("Floating capture bubble is active over WhatsApp")
+                    .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                    .setContentIntent(pendingIntent)
+                    .setOngoing(true)
+                    .build();
+        } catch (Exception e) {
+            Log.e(TAG, "Error building notification", e);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                return new Notification.Builder(this, CHANNEL_ID).build();
+            }
+            return new Notification();
         }
-
-        return builder
-                .setContentTitle("WA Recovery Pro — Floating Assistant")
-                .setContentText("Floating capture bubble is active over WhatsApp")
-                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                .setContentIntent(pendingIntent)
-                .setOngoing(true)
-                .build();
     }
 
     @SuppressLint({"ClickableViewAccessibility", "SetTextI18n"})
     private void showFloatingBubble() {
         if (floatingView != null) return;
 
-        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-        int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                : WindowManager.LayoutParams.TYPE_PHONE;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
+            Log.w(TAG, "Overlay permission not granted, stopping service");
+            stopSelf();
+            return;
+        }
 
-        params = new WindowManager.LayoutParams(
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.WRAP_CONTENT,
-                layoutType,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                PixelFormat.TRANSLUCENT
-        );
+        try {
+            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+            int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+                    : WindowManager.LayoutParams.TYPE_PHONE;
 
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 40;
-        params.y = 300;
+            params = new WindowManager.LayoutParams(
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    WindowManager.LayoutParams.WRAP_CONTENT,
+                    layoutType,
+                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                    PixelFormat.TRANSLUCENT
+            );
 
-        // Build UI programmatically
-        floatingView = buildOverlayLayout();
-        windowManager.addView(floatingView, params);
+            params.gravity = Gravity.TOP | Gravity.START;
+            params.x = 40;
+            params.y = 300;
+
+            // Build UI programmatically
+            floatingView = buildOverlayLayout();
+            windowManager.addView(floatingView, params);
+            Log.i(TAG, "Floating bubble added to WindowManager");
+        } catch (Exception e) {
+            Log.e(TAG, "Error adding floating bubble to WindowManager", e);
+            stopSelf();
+        }
     }
 
     @SuppressLint({"ClickableViewAccessibility", "SetTextI18n"})

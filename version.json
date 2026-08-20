@@ -1,14 +1,14 @@
 {
-  "version": "1.6.0",
-  "build": 13,
+  "version": "1.6.1",
+  "build": 14,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.6.0 — Floating Spy Assistant & Multi-Export!",
+  "title": "WA Recovery Pro v1.6.1 — Back Gesture & Floating Fixes!",
   "changelog": [
-    "🎈 Floating Capture Assistant (Spy Bubble): live 1-tap AAC audio recording for View-Once voice notes as they play on speaker",
-    "📄 Multi-Format Chat Export: Plain Text (.txt), Styled Web Page (.html), and PDF Document (.pdf)",
-    "📤 Context-Aware Single Item Sharing: Quick copy & share for text, voice notes, and media",
-    "📸 6-source high-res bitmap extraction with 100% lossless PNG saving",
-    "✨ 0 compile warnings & enhanced Android permissions handling"
+    "🔙 Added Android Hardware & Gesture Back Button handling (closes chats, modals & lightboxes)",
+    "🛡️ Hardened Floating Assistant with complete crash prevention & safe overlay checks",
+    "📱 Native Android Share Sheet intent for true direct sharing to apps",
+    "🎈 Floating Capture Assistant for live View-Once voice note recording",
+    "📄 Multi-Format Chat Export (TXT, HTML, PDF)"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

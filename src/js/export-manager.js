@@ -352,7 +352,7 @@ class ExportManager {
         await bridge.shareText({ text: summaryText, title: `Chat Report - ${contact}` });
         this.closeExportModal();
         return;
-      } catch (ignored) {}
+      } catch (ignored) { }
     }
 
     try {
@@ -420,7 +420,7 @@ class ExportManager {
       try {
         await bridge.shareText({ text: shareBody, title: `Message from ${msg.contact}` });
         return;
-      } catch (ignored) {}
+      } catch (ignored) { }
     }
 
     // 2. Web Share API Fallback
