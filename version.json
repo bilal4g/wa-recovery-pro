@@ -1,13 +1,13 @@
 {
-  "version": "1.8.1",
-  "build": 22,
+  "version": "1.8.2",
+  "build": 23,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.1 — Persistent 0-Prompt Screen Capture & Live Mirror",
+  "title": "WA Recovery Pro v1.8.2 — Instant Screenshot Preview Notification & Haptic Feedback",
   "changelog": [
-    "🚀 Persistent 0-Prompt Screen Capture: Approve screen share once, take unlimited instant screenshots with zero repeat prompts",
-    "⚡ Instant 0ms Pixel Capture: Live virtual mirror grabs frames directly from the display buffer",
-    "☑️ Multi-Select & Batch Actions: Select & delete/share multiple messages, chats, media, and voice notes",
-    "🗑️ 1-Tap Message & Voice Deletion with confirmation"
+    "🔔 Rich Screenshot Notification: Instant status bar alert with large picture preview, 1-tap Share and View in App",
+    "📳 Haptic Vibration: Crisp physical vibration feedback confirms the exact moment of capture",
+    "🎥 Screen Video & Voice Notifications: Heads-up alerts upon finishing video and view-once audio recordings",
+    "🚀 Persistent 0-Prompt Mirror: Take unlimited screenshots with zero repeat prompts"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

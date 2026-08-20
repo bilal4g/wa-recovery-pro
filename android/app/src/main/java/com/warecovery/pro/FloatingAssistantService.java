@@ -19,11 +19,14 @@ import android.media.ImageReader;
 import android.media.MediaRecorder;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Base64;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -36,6 +39,8 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import androidx.core.app.NotificationCompat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -580,6 +585,7 @@ public class FloatingAssistantService extends Service {
             );
 
             // 3. Save copy to Phone Gallery (Pictures/WARecovery)
+            File targetFile = screenFile;
             try {
                 File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
                 if (!pubDir.exists()) pubDir.mkdirs();
@@ -595,6 +601,7 @@ public class FloatingAssistantService extends Service {
                         new String[]{"image/png"},
                         null
                 );
+                targetFile = pubFile;
             } catch (Exception ignored) {}
 
             // 4. Notify Web Layer
@@ -604,11 +611,98 @@ public class FloatingAssistantService extends Service {
                 bridge.onNativeEvent("mediaRecovered", "Screen Capture");
             }
 
-            Toast.makeText(this, "📸 Real Screenshot captured & saved to Photos!", Toast.LENGTH_SHORT).show();
+            // 5. Trigger Haptic Vibration & Notification
+            triggerHapticFeedback();
+            showScreenshotNotification(targetFile, bitmap);
+
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "📸 Screenshot Saved! Tap notification to view", Toast.LENGTH_LONG).show();
+            });
+
             Log.i(TAG, "Screenshot captured successfully: " + screenFile.getAbsolutePath());
 
         } catch (Exception e) {
             Log.e(TAG, "Error saving screenshot", e);
+        }
+    }
+
+    private void triggerHapticFeedback() {
+        try {
+            Vibrator v = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+            if (v != null) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    v.vibrate(VibrationEffect.createOneShot(70, VibrationEffect.DEFAULT_AMPLITUDE));
+                } else {
+                    v.vibrate(70);
+                }
+            }
+        } catch (Exception ignored) {}
+    }
+
+    private void showScreenshotNotification(File file, Bitmap bitmap) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            String channelId = "screen_capture_alerts";
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                NotificationChannel channel = new NotificationChannel(
+                        channelId,
+                        "Screenshot & Capture Alerts",
+                        NotificationManager.IMPORTANCE_HIGH
+                );
+                channel.setDescription("Shows preview notifications when screenshots or voice notes are captured");
+                channel.enableVibration(true);
+                nm.createNotificationChannel(channel);
+            }
+
+            // Intent to open Main App
+            Intent openIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (openIntent == null) openIntent = new Intent(this, MainActivity.class);
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pOpen = PendingIntent.getActivity(
+                    this, (int) System.currentTimeMillis(), openIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            // Intent to Share File
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("image/png");
+            try {
+                Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                        this, getPackageName() + ".fileprovider", file
+                );
+                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) {}
+            
+            PendingIntent pShare = PendingIntent.getActivity(
+                    this, (int) System.currentTimeMillis() + 1,
+                    Intent.createChooser(shareIntent, "Share Screenshot"),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+                    .setSmallIcon(android.R.drawable.ic_menu_camera)
+                    .setContentTitle("📸 Screenshot Captured!")
+                    .setContentText("Saved to Gallery & WA Recovery Pro · Tap to view")
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setAutoCancel(true)
+                    .setContentIntent(pOpen)
+                    .addAction(android.R.drawable.ic_menu_share, "Share", pShare)
+                    .addAction(android.R.drawable.ic_menu_view, "Open in App", pOpen);
+
+            if (bitmap != null && !bitmap.isRecycled()) {
+                builder.setStyle(new NotificationCompat.BigPictureStyle()
+                        .bigPicture(bitmap)
+                        .setSummaryText("Saved to Gallery & WA Recovery Pro"));
+            }
+
+            nm.notify((int) System.currentTimeMillis(), builder.build());
+
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to show screenshot notification", e);
         }
     }
 
@@ -795,7 +889,12 @@ public class FloatingAssistantService extends Service {
                     bridge.onNativeEvent("mediaRecovered", "Screen Recording");
                 }
 
-                Toast.makeText(this, "🎥 Screen Video saved to Gallery!", Toast.LENGTH_LONG).show();
+                triggerHapticFeedback();
+                showMediaSavedNotification("🎥 Screen Video Saved!", "Tap to play recorded screen video", vFile, "video/mp4");
+
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(FloatingAssistantService.this, "🎥 Screen Video saved to Gallery & App!", Toast.LENGTH_LONG).show();
+                });
             }
 
         } catch (Exception e) {
@@ -859,12 +958,17 @@ public class FloatingAssistantService extends Service {
             };
             timerHandler.post(timerRunnable);
 
-            Toast.makeText(this, "🔴 Recording Audio... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            triggerHapticFeedback();
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "🔴 Recording Audio... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            });
             Log.i(TAG, "Started spy audio recording: " + currentAudioPath);
 
         } catch (Exception e) {
             Log.e(TAG, "Error starting spy audio recording", e);
-            Toast.makeText(this, "Could not start audio recorder", Toast.LENGTH_SHORT).show();
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "Could not start audio recorder", Toast.LENGTH_SHORT).show();
+            });
             isRecording = false;
         }
     }
@@ -890,6 +994,7 @@ public class FloatingAssistantService extends Service {
 
             if (currentAudioPath != null && new File(currentAudioPath).exists()) {
                 long timestamp = System.currentTimeMillis();
+                File aFile = new File(currentAudioPath);
 
                 // 1. Insert into Voice Notes Table
                 dbHelper.insertVoiceNote("Captured Voice", currentAudioPath, (int) durationSec, timestamp, true);
@@ -916,7 +1021,12 @@ public class FloatingAssistantService extends Service {
                     bridge.onNativeEvent("voiceRecovered", "Captured Voice");
                 }
 
-                Toast.makeText(this, "✅ Audio captured & saved!", Toast.LENGTH_SHORT).show();
+                triggerHapticFeedback();
+                showMediaSavedNotification("🎙️ View-Once Voice Note Saved!", "Duration: " + durationSec + "s · Tap to play", aFile, "audio/mp4");
+
+                new Handler(Looper.getMainLooper()).post(() -> {
+                    Toast.makeText(FloatingAssistantService.this, "✅ Voice note captured & saved!", Toast.LENGTH_SHORT).show();
+                });
                 Log.i(TAG, "Successfully captured audio to: " + currentAudioPath);
             }
 
@@ -924,6 +1034,54 @@ public class FloatingAssistantService extends Service {
             Log.e(TAG, "Error stopping audio recording", e);
         } finally {
             resetBubbleUI();
+        }
+    }
+
+    private void showMediaSavedNotification(String title, String text, File file, String mimeType) {
+        try {
+            NotificationManager nm = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return;
+
+            String channelId = "screen_capture_alerts";
+
+            Intent openIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+            if (openIntent == null) openIntent = new Intent(this, MainActivity.class);
+            openIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            PendingIntent pOpen = PendingIntent.getActivity(
+                    this, (int) System.currentTimeMillis(), openIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType(mimeType);
+            try {
+                Uri uri = androidx.core.content.FileProvider.getUriForFile(
+                        this, getPackageName() + ".fileprovider", file
+                );
+                shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            } catch (Exception ignored) {}
+
+            PendingIntent pShare = PendingIntent.getActivity(
+                    this, (int) System.currentTimeMillis() + 1,
+                    Intent.createChooser(shareIntent, "Share Media"),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+
+            NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
+                    .setSmallIcon(mimeType.startsWith("video") ? android.R.drawable.ic_media_play : android.R.drawable.ic_btn_speak_now)
+                    .setContentTitle(title)
+                    .setContentText(text)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setDefaults(NotificationCompat.DEFAULT_ALL)
+                    .setAutoCancel(true)
+                    .setContentIntent(pOpen)
+                    .addAction(android.R.drawable.ic_menu_share, "Share", pShare)
+                    .addAction(android.R.drawable.ic_menu_view, "Open App", pOpen);
+
+            nm.notify((int) System.currentTimeMillis(), builder.build());
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to show media notification", e);
         }
     }
 
