@@ -25,6 +25,7 @@ public class NotificationListener extends NotificationListenerService {
     private static final String WHATSAPP_BUSINESS_PACKAGE = "com.whatsapp.w4b";
 
     private DatabaseHelper dbHelper;
+    private MediaScanner mediaScanner;
     private static NotificationListener instance;
 
     public static NotificationListener getInstance() {
@@ -36,12 +37,17 @@ public class NotificationListener extends NotificationListenerService {
         super.onCreate();
         instance = this;
         dbHelper = DatabaseHelper.getInstance(this);
+        mediaScanner = new MediaScanner(this);
+        mediaScanner.startScanning();
         Log.i(TAG, "NotificationListenerService created");
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (mediaScanner != null) {
+            mediaScanner.stopScanning();
+        }
         instance = null;
         Log.i(TAG, "NotificationListenerService destroyed");
     }
@@ -49,6 +55,11 @@ public class NotificationListener extends NotificationListenerService {
     @Override
     public void onNotificationPosted(StatusBarNotification sbn) {
         if (!isWhatsAppNotification(sbn)) return;
+
+        // Trigger on-demand media scan immediately (0% battery drain while idle)
+        if (mediaScanner != null) {
+            mediaScanner.triggerOnDemandScan();
+        }
 
         try {
             Notification notification = sbn.getNotification();
