@@ -111,6 +111,17 @@ public class NotificationListener extends NotificationListenerService {
                 );
             }
 
+            // If it's a voice note, extract incoming .opus audio file immediately
+            if ("voice".equals(type)) {
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(800); // Allow WhatsApp 800ms to complete download
+                        VoiceExtractor extractor = new VoiceExtractor(this);
+                        extractor.scanAndExtract();
+                    } catch (Exception ignored) {}
+                }).start();
+            }
+
             // Store in database
             dbHelper.insertMessage(
                     contact,

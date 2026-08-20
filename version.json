@@ -1,16 +1,16 @@
 {
-  "version": "1.3.5",
-  "build": 9,
+  "version": "1.4.0",
+  "build": 10,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.3.5 — Background & Viewer Update!",
+  "title": "WA Recovery Pro v1.4.0 — Major Release!",
   "changelog": [
+    "🔊 Real Voice Note Audio Recovery (.opus Hardware Sound Output)",
     "🖼️ Translucent Glassmorphic Wallpaper Theme (bg.jpeg)",
+    "📲 Direct In-App APK Replacing Auto-Installer",
     "📷 1-Tap Full-Screen Photo Lightbox Viewer",
-    "🛡️ 100% Zero-Duplicate Message Engine",
-    "⚡ Fast 0ms Launch Engine"
+    "🛡️ 100% Zero-Duplicate Message Engine"
   ],
-  "hasLivePatch": true,
-  "patchSize": "240 KB",
+  "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
   "minNativeVersion": "1.0.0"
 }

@@ -358,6 +358,95 @@ public class RecoveryBridge extends Plugin {
         }).start();
     }
 
+    private android.media.MediaPlayer mediaPlayer;
+
+    /**
+     * Play a voice note using Android's native hardware audio player.
+     * Supports .opus, .m4a, .ogg, .mp3, .aac with real hardware sound output.
+     */
+    @PluginMethod()
+    public void playVoiceNote(PluginCall call) {
+        String path = call.getString("path");
+        Double speed = call.getDouble("speed", 1.0);
+
+        try {
+            if (mediaPlayer != null) {
+                try { mediaPlayer.stop(); mediaPlayer.release(); } catch (Exception ignored) {}
+                mediaPlayer = null;
+            }
+
+            if (path == null || path.isEmpty()) {
+                java.util.List<java.io.File> backups = voiceExtractor.getBackedUpVoiceNotes();
+                if (!backups.isEmpty()) {
+                    path = backups.get(backups.size() - 1).getAbsolutePath();
+                }
+            }
+
+            if (path == null || !new java.io.File(path).exists()) {
+                call.reject("Voice audio file not found on storage");
+                return;
+            }
+
+            mediaPlayer = new android.media.MediaPlayer();
+            mediaPlayer.setDataSource(path);
+            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
+            mediaPlayer.prepare();
+
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && speed != null && speed > 0) {
+                android.media.PlaybackParams params = new android.media.PlaybackParams();
+                params.setSpeed(speed.floatValue());
+                mediaPlayer.setPlaybackParams(params);
+            }
+
+            mediaPlayer.setOnCompletionListener(mp -> {
+                JSObject ret = new JSObject();
+                ret.put("status", "completed");
+                notifyListeners("onVoicePlayState", ret);
+            });
+
+            mediaPlayer.start();
+
+            JSObject result = new JSObject();
+            result.put("status", "playing");
+            result.put("duration", mediaPlayer.getDuration());
+            call.resolve(result);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error playing native voice note", e);
+            call.reject("Error playing audio: " + e.getMessage());
+        }
+    }
+
+    @PluginMethod()
+    public void pauseVoiceNote(PluginCall call) {
+        try {
+            if (mediaPlayer != null && mediaPlayer.isPlaying()) {
+                mediaPlayer.pause();
+            }
+            JSObject result = new JSObject();
+            result.put("status", "paused");
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Error pausing audio", e);
+        }
+    }
+
+    @PluginMethod()
+    public void stopVoiceNote(PluginCall call) {
+        try {
+            if (mediaPlayer != null) {
+                mediaPlayer.stop();
+                mediaPlayer.release();
+                mediaPlayer = null;
+            }
+            JSObject result = new JSObject();
+            result.put("status", "stopped");
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Error stopping audio", e);
+        }
+    }
+
     // =============================================
     // STATISTICS
     // =============================================

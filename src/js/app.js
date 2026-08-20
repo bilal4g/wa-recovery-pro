@@ -808,70 +808,94 @@ class WARecoveryApp {
     }
   }
 
-  playVoice(voiceId) {
+  async playVoice(voiceId) {
     const playerEl = document.querySelector(`[data-voice-id="${voiceId}"] .voice-play-btn`);
     if (!playerEl) return;
 
     const icon = playerEl.querySelector('.material-icons-round');
-    const waveform = playerEl.closest('.voice-player').querySelector('.voice-waveform');
-    const timeEl = playerEl.closest('.voice-player').querySelector('.voice-time');
-    const bars = waveform.querySelectorAll('.wave-bar');
+    const waveform = playerEl.closest('.voice-player')?.querySelector('.voice-waveform');
+    const bars = waveform ? waveform.querySelectorAll('.wave-bar') : [];
     const speed = this.voiceSpeeds[voiceId] || 1.0;
 
     if (this.audioPlayers[voiceId]) {
-      this.audioPlayers[voiceId].pause();
+      if (this.bridge) {
+        try { await this.bridge.stopVoiceNote(); } catch (e) {}
+      }
+      if (this.audioPlayers[voiceId].pause) this.audioPlayers[voiceId].pause();
       delete this.audioPlayers[voiceId];
-      icon.textContent = 'play_arrow';
+      if (icon) icon.textContent = 'play_arrow';
       bars.forEach(b => b.classList.remove('active'));
       return;
     }
 
-    // Stop any currently playing audio
+    // Stop any other currently playing audio
     Object.keys(this.audioPlayers).forEach(key => {
       if (this.audioPlayers[key] && this.audioPlayers[key].pause) this.audioPlayers[key].pause();
       delete this.audioPlayers[key];
     });
+    if (this.bridge) {
+      try { await this.bridge.stopVoiceNote(); } catch (e) {}
+    }
     document.querySelectorAll('.voice-play-btn .material-icons-round').forEach(i => i.textContent = 'play_arrow');
     document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
 
-    // Get the audio source URL from the voice note data
     const voiceItem = document.querySelector(`[data-voice-id="${voiceId}"]`);
     const audioSrc = voiceItem ? voiceItem.dataset.audioUrl : null;
 
-    if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined') {
-      // No actual audio file available — notification-captured voice notes don't include audio data
-      showToast('⚠️ Voice note text was recovered but audio file is not available (notification capture only saves metadata).', 'info', 4000);
-      return;
+    if (icon) icon.textContent = 'pause';
+
+    let barIndex = 0;
+    const intervalTime = Math.max(50, Math.round(150 / speed));
+    const animInterval = setInterval(() => {
+      if (barIndex >= bars.length) barIndex = 0;
+      bars.forEach(b => b.classList.remove('active'));
+      if (bars[barIndex]) bars[barIndex].classList.add('active');
+      barIndex++;
+    }, intervalTime);
+
+    // 1. Play with native hardware audio player on Android
+    if (this.bridge && window.Capacitor?.isNativePlatform()) {
+      try {
+        await this.bridge.playVoiceNote({ path: audioSrc, speed: speed });
+        this.audioPlayers[voiceId] = {
+          pause: async () => {
+            clearInterval(animInterval);
+            try { await this.bridge.stopVoiceNote(); } catch (e) {}
+          }
+        };
+        return;
+      } catch (err) {
+        console.log('Native player fallback:', err);
+      }
     }
 
-    // Play real audio file
-    try {
-      const audio = new Audio(audioSrc);
-      audio.playbackRate = speed;
-      audio.play();
-      icon.textContent = 'pause';
-
-      let barIndex = 0;
-      const intervalTime = Math.max(50, Math.round(150 / speed));
-      const animInterval = setInterval(() => {
-        if (barIndex >= bars.length) barIndex = 0;
-        bars.forEach(b => b.classList.remove('active'));
-        bars[barIndex].classList.add('active');
-        barIndex++;
-      }, intervalTime);
-
-      audio.onended = () => {
+    // 2. Web fallback
+    if (audioSrc && audioSrc !== 'null' && audioSrc !== 'undefined') {
+      try {
+        const audio = new Audio(audioSrc);
+        audio.playbackRate = speed;
+        audio.play();
+        audio.onended = () => {
+          clearInterval(animInterval);
+          if (icon) icon.textContent = 'play_arrow';
+          bars.forEach(b => b.classList.remove('active'));
+          delete this.audioPlayers[voiceId];
+        };
+        this.audioPlayers[voiceId] = {
+          pause: () => { audio.pause(); clearInterval(animInterval); }
+        };
+      } catch (e) {
         clearInterval(animInterval);
-        icon.textContent = 'play_arrow';
-        bars.forEach(b => b.classList.remove('active'));
-        delete this.audioPlayers[voiceId];
-      };
-
-      this.audioPlayers[voiceId] = {
-        pause: () => { audio.pause(); clearInterval(animInterval); }
-      };
-    } catch (e) {
-      showToast('Could not play audio file.', 'error');
+        if (icon) icon.textContent = 'play_arrow';
+        showToast('Could not play audio file', 'error');
+      }
+    } else {
+      if (this.bridge) {
+        try {
+          await this.bridge.scanVoiceNotes();
+          await this.bridge.playVoiceNote({ speed: speed });
+        } catch (e) {}
+      }
     }
   }
 
