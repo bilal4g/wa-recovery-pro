@@ -11,13 +11,13 @@
   --green-glow: rgba(37, 211, 102, 0.3);
   --green-subtle: rgba(37, 211, 102, 0.08);
 
-  /* Background Layers */
-  --bg-base: #0a0f1c;
-  --bg-surface: #111827;
-  --bg-card: #1a2236;
-  --bg-card-hover: #1f2a42;
-  --bg-elevated: #243050;
-  --bg-input: #0f1628;
+  /* Background Layers — Translucent Glassmorphism over bg.jpeg */
+  --bg-base: rgba(10, 15, 28, 0.72);
+  --bg-surface: rgba(17, 24, 39, 0.78);
+  --bg-card: rgba(26, 34, 54, 0.75);
+  --bg-card-hover: rgba(31, 42, 66, 0.85);
+  --bg-elevated: rgba(36, 48, 80, 0.80);
+  --bg-input: rgba(15, 22, 40, 0.80);
 
   /* Text */
   --text-primary: #f1f5f9;

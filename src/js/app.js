@@ -968,6 +968,11 @@ class WARecoveryApp {
     if (settingsStorage) {
       settingsStorage.textContent = `${storage.totalFiles} files · ${storage.formattedSize}`;
     }
+
+    const versionLabel = document.getElementById('app-version-label');
+    if (versionLabel) {
+      versionLabel.textContent = `${autoUpdater.currentVersion} (Build ${autoUpdater.currentBuild || 8})`;
+    }
   }
 
   async exportAllData() {
