@@ -1062,16 +1062,33 @@ class WARecoveryApp {
     // Floating Capture Assistant Toggle & Dashboard Launch Button
     const toggleFloating = document.getElementById('toggle-floating-assistant');
     const btnLaunchFloating = document.getElementById('btn-toggle-floating-assistant');
+    const syncUIState = (isRunning) => {
+      if (toggleFloating) toggleFloating.checked = isRunning;
+      if (btnLaunchFloating) {
+        btnLaunchFloating.innerHTML = isRunning
+          ? '<span class="material-icons-round">stop</span> Stop Floating Bubble'
+          : '<span class="material-icons-round">play_arrow</span> Launch Floating Bubble';
+        btnLaunchFloating.classList.toggle('btn-active', isRunning);
+      }
+    };
+
+    if (this.bridge) {
+      try {
+        this.bridge.addListener('assistantStateChanged', (info) => {
+          const isStopped = !info || info.data === 'stopped' || info.event === 'stopped';
+          syncUIState(!isStopped);
+        });
+        this.bridge.isFloatingAssistantRunning().then(res => {
+          if (res && typeof res.isRunning === 'boolean') {
+            syncUIState(res.isRunning);
+          }
+        }).catch(() => {});
+      } catch (ignored) {}
+    }
 
     const handleToggleFloating = async (shouldStart) => {
       if (!this.bridge) {
-        showToast(shouldStart ? '🎈 Floating Spy Bubble active! Open WhatsApp to capture' : 'Floating Assistant stopped', 'info');
-        if (btnLaunchFloating) {
-          btnLaunchFloating.innerHTML = shouldStart
-            ? '<span class="material-icons-round">stop</span> Stop Floating Bubble'
-            : '<span class="material-icons-round">play_arrow</span> Launch Floating Bubble';
-          btnLaunchFloating.classList.toggle('btn-active', shouldStart);
-        }
+        syncUIState(shouldStart);
         return;
       }
       try {
@@ -1081,7 +1098,7 @@ class WARecoveryApp {
           if (!perm || !perm.granted) {
             showToast('⚠️ Please allow "Display over other apps" permission', 'warning', 3000);
             await this.bridge.requestOverlayPermission();
-            if (toggleFloating) toggleFloating.checked = false;
+            syncUIState(false);
             return;
           }
 
@@ -1102,20 +1119,12 @@ class WARecoveryApp {
           const res = await this.bridge.startFloatingAssistant();
           if (res && res.success) {
             showToast('🎈 Floating Spy Bubble is active! Open WhatsApp to capture', 'success', 3500);
-            if (toggleFloating) toggleFloating.checked = true;
-            if (btnLaunchFloating) {
-              btnLaunchFloating.innerHTML = '<span class="material-icons-round">stop</span> Stop Floating Bubble';
-              btnLaunchFloating.classList.add('btn-active');
-            }
+            syncUIState(true);
           }
         } else {
           await this.bridge.stopFloatingAssistant();
           showToast('Floating Assistant stopped', 'info');
-          if (toggleFloating) toggleFloating.checked = false;
-          if (btnLaunchFloating) {
-            btnLaunchFloating.innerHTML = '<span class="material-icons-round">play_arrow</span> Launch Floating Bubble';
-            btnLaunchFloating.classList.remove('btn-active');
-          }
+          syncUIState(false);
         }
       } catch (e) {
         showToast('Assistant error: ' + e, 'error');

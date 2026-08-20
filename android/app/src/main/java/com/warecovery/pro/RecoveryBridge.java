@@ -760,6 +760,16 @@ public class RecoveryBridge extends Plugin {
         }
     }
 
+    /**
+     * Check if Floating Capture Assistant is currently active.
+     */
+    @PluginMethod()
+    public void isFloatingAssistantRunning(PluginCall call) {
+        JSObject res = new JSObject();
+        res.put("isRunning", FloatingAssistantService.isRunning);
+        call.resolve(res);
+    }
+
     // =============================================
     // NATIVE SYSTEM SHARING
     // =============================================

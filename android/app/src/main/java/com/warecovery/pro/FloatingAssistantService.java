@@ -47,6 +47,7 @@ public class FloatingAssistantService extends Service {
     private static final String CHANNEL_ID = "wa_floating_assistant_channel";
     private static final int NOTIF_ID = 2001;
 
+    public static boolean isRunning = false;
     public static final String ACTION_START = "START_FLOATING_ASSISTANT";
     public static final String ACTION_STOP = "STOP_FLOATING_ASSISTANT";
 
@@ -74,6 +75,7 @@ public class FloatingAssistantService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        isRunning = true;
         dbHelper = DatabaseHelper.getInstance(this);
         timerHandler = new Handler(Looper.getMainLooper());
         createNotificationChannel();
@@ -717,6 +719,22 @@ public class FloatingAssistantService extends Service {
                     vFile.createNewFile();
                 }
 
+                // 1. Insert into Messages table (so it appears in Dashboard & Chats)
+                dbHelper.insertMessage(
+                        "Screen Recording",
+                        "🎥 Screen Video (" + durationSec + "s)",
+                        "video",
+                        timestamp,
+                        "received",
+                        null,
+                        false,
+                        true,
+                        null,
+                        currentVideoPath,
+                        "vid_" + timestamp
+                );
+
+                // 2. Insert into Media table (so it appears in Media -> Videos)
                 dbHelper.insertMedia(
                         "Screen Recording",
                         "video",
@@ -729,13 +747,39 @@ public class FloatingAssistantService extends Service {
                         true
                 );
 
+                // 3. Save copy to Phone Gallery (Movies/WARecovery)
+                try {
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "WARecovery");
+                    if (!pubDir.exists()) pubDir.mkdirs();
+                    File pubFile = new File(pubDir, "wa_video_" + timestamp + ".mp4");
+                    
+                    java.io.InputStream in = new java.io.FileInputStream(vFile);
+                    java.io.OutputStream out = new java.io.FileOutputStream(pubFile);
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                    }
+                    in.close();
+                    out.close();
+
+                    android.media.MediaScannerConnection.scanFile(
+                            this,
+                            new String[]{pubFile.getAbsolutePath()},
+                            new String[]{"video/mp4"},
+                            null
+                    );
+                } catch (Exception ignored) {}
+
+                // 4. Notify Web Layer
                 RecoveryBridge bridge = RecoveryBridge.getInstance();
                 if (bridge != null) {
                     bridge.onNativeEvent("newMessage", "Screen Recording");
+                    bridge.onNativeEvent("mediaRecovered", "Screen Recording");
                 }
             }
 
-            Toast.makeText(this, "✅ Video saved to WA Recovery Pro (Media -> Videos)!", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "✅ Video saved to WA Recovery Pro & Gallery!", Toast.LENGTH_LONG).show();
             Log.i(TAG, "Stopped Screen Video recording: " + currentVideoPath);
 
         } catch (Exception e) {
@@ -764,6 +808,7 @@ public class FloatingAssistantService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        isRunning = false;
         if (isRecording) {
             stopAudioRecording();
         }
@@ -774,6 +819,13 @@ public class FloatingAssistantService extends Service {
             windowManager.removeView(floatingView);
             floatingView = null;
         }
+
+        // Notify Web Layer that Floating Assistant has closed
+        RecoveryBridge bridge = RecoveryBridge.getInstance();
+        if (bridge != null) {
+            bridge.onNativeEvent("assistantStateChanged", "stopped");
+        }
+
         Log.i(TAG, "Floating Assistant Service stopped");
     }
 }
