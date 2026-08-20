@@ -336,7 +336,7 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void scanMedia(PluginCall call) {
         new Thread(() -> {
-            mediaScanner.performFullScan();
+            mediaScanner.triggerOnDemandScan();
             JSObject result = new JSObject();
             result.put("success", true);
             call.resolve(result);

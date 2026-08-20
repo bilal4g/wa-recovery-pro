@@ -1,14 +1,14 @@
 {
-  "version": "1.7.3",
-  "build": 18,
+  "version": "1.7.4",
+  "build": 19,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.7.3 — Full Media Gallery Engine & Photo Sync",
+  "title": "WA Recovery Pro v1.7.4 — Only-New Media Filter & Clean Slate Engine",
   "changelog": [
-    "🖼️ 100% WhatsApp Photo Interception: Saves incoming notification photos and view-once images to Media Gallery & Phone Gallery",
-    "🔄 Live Native Media Synchronization: Fixed getMedia SQLite query to instantly populate Media -> Photos tab",
-    "🎈 Floating Assistant 2-Way Sync: Closing the assistant instantly resets the main app toggle button",
-    "🎥 Screen Video to Gallery: Auto-copies videos to phone's Movies/WARecovery folder",
-    "📨 WAMR-Grade Multi-Message Recovery & Call filtering"
+    "🛡️ Only-New Real-Time Filter: Never scans or imports old historical WhatsApp files (captures ONLY new incoming media)",
+    "🖼️ 100% Notification Photo Interception: Saves incoming photos & view-once images to Media Gallery & Phone Gallery",
+    "🗑️ 1-Tap Database Reset: Added full SQLite data clearing in Settings for a fresh start",
+    "🔄 Live Native Media Synchronization: Instantly populates Media -> Photos tab",
+    "🎈 Floating Assistant 2-Way Sync & Screen Video to Gallery"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

@@ -63,17 +63,43 @@ public class MediaScanner {
 
         Executors.newSingleThreadExecutor().execute(() -> {
             try {
-                // 1. Initial scan on app start in background thread
-                performFullScan();
+                // 1. Pre-index existing files on device so old history is NEVER captured
+                populateExistingFiles();
 
-                // 2. Set up recursive kernel inotify FileObservers (sleeps until file is written)
+                // 2. Set up recursive kernel inotify FileObservers (triggers ONLY when new file is written)
                 setupAllObservers();
 
-                Log.i(TAG, "MediaScanner active via battery-efficient kernel inotify");
+                Log.i(TAG, "MediaScanner active: watching ONLY for NEW incoming WhatsApp files");
             } catch (Exception e) {
                 Log.e(TAG, "Error starting MediaScanner background scan", e);
             }
         });
+    }
+
+    /**
+     * Pre-populates processedFiles with all existing files on disk so historical media is IGNORED,
+     * ensuring ONLY newly arrived files from this moment forward are captured!
+     */
+    private void populateExistingFiles() {
+        for (String basePath : WHATSAPP_MEDIA_PATHS) {
+            String fullPath = Environment.getExternalStorageDirectory() + basePath;
+            File dir = new File(fullPath);
+            if (dir.exists()) {
+                indexExistingFilesRecursive(dir);
+            }
+        }
+    }
+
+    private void indexExistingFilesRecursive(File dir) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                indexExistingFilesRecursive(file);
+            } else {
+                processedFiles.add(file.getAbsolutePath());
+            }
+        }
     }
 
     /**
@@ -142,23 +168,13 @@ public class MediaScanner {
         }
     }
 
-    public void performFullScan() {
-        for (String basePath : WHATSAPP_MEDIA_PATHS) {
-            String fullPath = Environment.getExternalStorageDirectory() + basePath;
-            File dir = new File(fullPath);
-            if (dir.exists()) {
-                scanDirectory(dir, 0);
-            }
-        }
-    }
-
     private void fastIncrementalScan() {
         long now = System.currentTimeMillis();
         for (String basePath : WHATSAPP_MEDIA_PATHS) {
             String fullPath = Environment.getExternalStorageDirectory() + basePath;
             File dir = new File(fullPath);
             if (dir.exists()) {
-                scanDirectory(dir, now - 60000); // Check files from last 60 seconds
+                scanDirectory(dir, now - 30000); // Check files created only in the last 30 seconds
             }
         }
     }

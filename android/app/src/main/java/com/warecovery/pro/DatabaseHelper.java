@@ -381,6 +381,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return stats;
     }
 
+    public void clearAllData() {
+        SQLiteDatabase db = getWritableDatabase();
+        db.delete(TABLE_MESSAGES, null, null);
+        db.delete(TABLE_MEDIA, null, null);
+        db.delete(TABLE_VOICE_NOTES, null, null);
+        db.delete(TABLE_VIEW_ONCE, null, null);
+    }
+
     private int getCount(SQLiteDatabase db, String table, String where) {
         String query = "SELECT COUNT(*) FROM " + table;
         if (where != null) query += " WHERE " + where;

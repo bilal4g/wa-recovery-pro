@@ -1085,7 +1085,7 @@ class WARecoveryApp {
           async () => {
             await db.clearAll();
             if (this.bridge) {
-              try { await this.bridge.clearAll(); } catch (e) {}
+              try { await this.bridge.clearAllData(); } catch (e) {}
             }
             showToast('All recovery data cleared', 'success');
             this.loadDashboard();
