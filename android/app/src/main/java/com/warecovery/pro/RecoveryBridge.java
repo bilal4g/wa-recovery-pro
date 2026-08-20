@@ -252,6 +252,21 @@ public class RecoveryBridge extends Plugin {
     }
 
     /**
+     * Open Accessibility settings.
+     */
+    @PluginMethod()
+    public void openAccessibilitySettings(PluginCall call) {
+        try {
+            Intent intent = new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+            call.resolve();
+        } catch (Exception e) {
+            openAppSettings(call);
+        }
+    }
+
+    /**
      * Open Battery Optimization ignore settings.
      */
     @PluginMethod()
@@ -268,6 +283,17 @@ public class RecoveryBridge extends Plugin {
             return;
         }
         call.resolve();
+    }
+
+    /**
+     * Check if Accessibility Service is enabled.
+     */
+    @PluginMethod()
+    public void isAccessibilityEnabled(PluginCall call) {
+        boolean enabled = WAAccessibilityService.isAccessibilityServiceEnabled(getContext());
+        JSObject result = new JSObject();
+        result.put("enabled", enabled);
+        call.resolve(result);
     }
 
     // =============================================

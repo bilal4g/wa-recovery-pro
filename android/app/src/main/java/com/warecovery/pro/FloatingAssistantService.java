@@ -503,13 +503,56 @@ public class FloatingAssistantService extends Service {
         }
     }
 
-    // =============================================
-    // REAL SCREENSHOT ENGINE
-    // =============================================
-
     private void takeInstantScreenshot() {
         if (menuCard != null) menuCard.setVisibility(View.GONE);
 
+        // 1. If Accessibility Service is NOT enabled, teleport directly to Settings
+        if (!WAAccessibilityService.isRunning() && !WAAccessibilityService.isAccessibilityServiceEnabled(this)) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "⚡ Turn ON WA Recovery Pro in Accessibility for 0-Prompt Instant Screenshots", Toast.LENGTH_LONG).show();
+            });
+            try {
+                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to open accessibility settings", e);
+            }
+            return;
+        }
+
+        // 2. Take 0-Prompt Instant Screenshot via Accessibility Hardware Buffer
+        if (WAAccessibilityService.isRunning()) {
+            if (floatingView != null) floatingView.setVisibility(View.INVISIBLE);
+
+            timerHandler.postDelayed(() -> {
+                WAAccessibilityService.getInstance().takeInstantScreenshot(new WAAccessibilityService.ScreenshotCallback() {
+                    @Override
+                    public void onSuccess(Bitmap bitmap) {
+                        try {
+                            if (bitmap != null) {
+                                saveAndPublishScreenshot(bitmap);
+                            }
+                        } finally {
+                            if (floatingView != null) {
+                                new Handler(Looper.getMainLooper()).post(() -> floatingView.setVisibility(View.VISIBLE));
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String error) {
+                        Log.e(TAG, "Accessibility screenshot failed: " + error);
+                        if (floatingView != null) {
+                            new Handler(Looper.getMainLooper()).post(() -> floatingView.setVisibility(View.VISIBLE));
+                        }
+                    }
+                });
+            }, 120);
+            return;
+        }
+
+        // Fallback for older devices or if service connecting
         if (mediaProjection == null || persistentVirtualDisplay == null) {
             Intent intent = new Intent(this, ScreenCaptureActivity.class);
             intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);

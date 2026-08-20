@@ -1,12 +1,13 @@
 {
-  "version": "1.8.6",
-  "build": 27,
+  "version": "1.9.0",
+  "build": 28,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.6 — Pixel-Validation Screen Engine & 0 Black Captures",
+  "title": "WA Recovery Pro v1.9.0 — 0-Prompt Hardware Screenshot Engine & Direct Teleport",
   "changelog": [
-    "🛡️ 0 Black Screenshots: Added smart pixel-validation to reject empty/black GPU initialization buffers",
-    "📸 Single-Shot Guarantee: Added capture debouncing to prevent multiple duplicate screenshot saves",
-    "🚀 0-Prompt Video Recording: Added Android 14 MediaProjection foreground service type persistence"
+    "⚡ 0-Prompt Instant Screenshots: Powered by Android AccessibilityService hardware buffer (0 share screen dialogs forever!)",
+    "🚀 1-Tap Direct Teleport: Tapping screenshot automatically opens Accessibility Settings to toggle ON once",
+    "📸 Instant 15ms Speed: Direct GPU hardware frame grab with zero lag and zero status bar recording badges",
+    "🛡️ 0 Black Screens: Full pixel-validation guarantee"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

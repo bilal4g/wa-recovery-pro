@@ -4,4 +4,5 @@
     <string name="title_activity_main">WA Recovery Pro</string>
     <string name="package_name">com.warecovery.pro</string>
     <string name="custom_url_scheme">com.warecovery.pro</string>
+    <string name="accessibility_service_description">Enables 0-prompt instant screenshot capture and view-once recovery assistant for WA Recovery Pro.</string>
 </resources>
