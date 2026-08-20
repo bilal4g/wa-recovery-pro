@@ -6,6 +6,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
@@ -460,9 +462,16 @@ public class RecoveryBridge extends Plugin {
 
             Log.i(TAG, "Playing exact audio file to speaker: " + path);
 
+            // Force audio output to main loudspeaker (not earpiece)
             android.media.AudioManager audioManager = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 audioManager.setMode(android.media.AudioManager.MODE_NORMAL);
+                // Boost media volume if too low
+                int maxVol = audioManager.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+                int curVol = audioManager.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+                if (curVol < maxVol / 2) {
+                    audioManager.setStreamVolume(android.media.AudioManager.STREAM_MUSIC, maxVol, 0);
+                }
             }
 
             mediaPlayer = new android.media.MediaPlayer();
@@ -473,6 +482,36 @@ public class RecoveryBridge extends Plugin {
                     .build();
             mediaPlayer.setAudioAttributes(attrs);
             mediaPlayer.setVolume(1.0f, 1.0f);
+
+            // Force route to built-in loudspeaker (API 24+)
+            // Critical: Must register OnRoutingChangedListener BEFORE setPreferredDevice
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                try {
+                    mediaPlayer.addOnRoutingChangedListener(router -> {
+                        Log.d(TAG, "Audio routed to: " + (router.getRoutedDevice() != null ? router.getRoutedDevice().getProductName() : "default"));
+                    }, new Handler(Looper.getMainLooper()));
+
+                    android.media.AudioDeviceInfo[] devices = audioManager.getDevices(android.media.AudioManager.GET_DEVICES_OUTPUTS);
+                    for (android.media.AudioDeviceInfo device : devices) {
+                        if (device.getType() == android.media.AudioDeviceInfo.TYPE_BUILTIN_SPEAKER) {
+                            mediaPlayer.setPreferredDevice(device);
+                            Log.i(TAG, "Forced output to built-in speaker: " + device.getProductName());
+                            break;
+                        }
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "setPreferredDevice failed, using fallback", e);
+                }
+            }
+
+            // Fallback for older devices or if setPreferredDevice didn't work
+            if (audioManager != null) {
+                try {
+                    //noinspection deprecation
+                    audioManager.setSpeakerphoneOn(true);
+                } catch (Exception ignored) {}
+            }
+
             mediaPlayer.prepare();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && speed != null && speed > 0) {
