@@ -43,8 +43,10 @@ public class VoiceExtractor {
         this.backupDir = backupFile.getAbsolutePath();
     }
 
+    private static final long SERVICE_START_TIME = System.currentTimeMillis();
+
     /**
-     * Finds the newest .opus voice note on the device (created within last 5 minutes),
+     * Finds the newest .opus voice note on the device (created in real-time within last 60 seconds),
      * copies it into private app backup storage, and links it directly to the contact.
      */
     public String extractLatestVoiceForContact(String contact) {
@@ -67,16 +69,16 @@ public class VoiceExtractor {
         Collections.sort(allVoiceFiles, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
 
         File newest = allVoiceFiles.get(0);
-        long ageMs = System.currentTimeMillis() - newest.lastModified();
+        long now = System.currentTimeMillis();
 
-        // If file was modified in the last 5 minutes, it belongs to this incoming voice message!
-        if (ageMs < 300000) {
+        // ONLY capture if the voice file was created AFTER the service started (real-time only)
+        if (newest.lastModified() >= (SERVICE_START_TIME - 15000) && (now - newest.lastModified()) < 120000) {
             String backupPath = backupVoiceFile(newest);
             if (backupPath != null) {
                 int duration = getAudioDuration(newest);
                 dbHelper.insertVoiceNote(contact, backupPath, duration, System.currentTimeMillis(), false);
                 dbHelper.updateLatestMessageVoiceAudio(contact, backupPath);
-                Log.i(TAG, "✅ Successfully captured voice note from " + contact + ": " + backupPath);
+                Log.i(TAG, "✅ [Real-Time] Captured incoming voice note from " + contact + ": " + backupPath);
                 return backupPath;
             }
         }
@@ -85,30 +87,10 @@ public class VoiceExtractor {
     }
 
     /**
-     * Scan all WhatsApp voice note directories and back up any new files.
+     * Scan voice note directories for real-time files only.
      */
     public int scanAndExtract() {
-        int count = 0;
-        List<File> allFiles = new ArrayList<>();
-        for (String path : VOICE_NOTE_PATHS) {
-            String fullPath = Environment.getExternalStorageDirectory() + path;
-            File dir = new File(fullPath);
-            if (dir.exists() && dir.isDirectory()) {
-                collectVoiceFiles(dir, allFiles);
-            }
-        }
-
-        for (File file : allFiles) {
-            try {
-                int duration = getAudioDuration(file);
-                String backupPath = backupVoiceFile(file);
-                if (backupPath != null) {
-                    dbHelper.insertVoiceNote("Voice Note", backupPath, duration, file.lastModified(), false);
-                    count++;
-                }
-            } catch (Exception ignored) {}
-        }
-        return count;
+        return 0; // Disabled bulk historical dump
     }
 
     private void collectVoiceFiles(File dir, List<File> result) {

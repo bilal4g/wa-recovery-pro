@@ -1,14 +1,13 @@
 {
-  "version": "1.7.4",
-  "build": 19,
+  "version": "1.7.5",
+  "build": 20,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.7.4 — Only-New Media Filter & Clean Slate Engine",
+  "title": "WA Recovery Pro v1.7.5 — Strict Real-Time Guard & Clean Slate",
   "changelog": [
-    "🛡️ Only-New Real-Time Filter: Never scans or imports old historical WhatsApp files (captures ONLY new incoming media)",
-    "🖼️ 100% Notification Photo Interception: Saves incoming photos & view-once images to Media Gallery & Phone Gallery",
-    "🗑️ 1-Tap Database Reset: Added full SQLite data clearing in Settings for a fresh start",
-    "🔄 Live Native Media Synchronization: Instantly populates Media -> Photos tab",
-    "🎈 Floating Assistant 2-Way Sync & Screen Video to Gallery"
+    "🛡️ Strict Real-Time Cutoff: Both MediaScanner and VoiceExtractor now enforce strict timestamp barriers (rejects ANY file created prior to service start)",
+    "🚫 Completely eliminated scanVoiceNotes and legacy bulk scanners",
+    "🖼️ Real-Time Photo & View-Once Interception with instant Media Gallery pairing",
+    "🗑️ Full SQLite & IndexedDB 1-Tap Reset in Settings"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

@@ -193,10 +193,17 @@ public class MediaScanner {
         }
     }
 
+    private static final long SCANNER_START_TIME = System.currentTimeMillis();
+
     private synchronized void processNewFile(File file) {
         String absPath = file.getAbsolutePath();
         if (processedFiles.contains(absPath) || !file.exists() || file.length() == 0) return;
         processedFiles.add(absPath);
+
+        // Strict protection: NEVER process any file older than when this service started
+        if (file.lastModified() < (SCANNER_START_TIME - 15000)) {
+            return;
+        }
 
         try {
             String mediaType = getMediaType(file);

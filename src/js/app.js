@@ -1047,7 +1047,6 @@ class WARecoveryApp {
     } else {
       if (this.bridge) {
         try {
-          await this.bridge.scanVoiceNotes();
           await this.bridge.playVoiceNote({ speed: speed });
         } catch (e) {}
       }
