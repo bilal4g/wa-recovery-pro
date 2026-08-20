@@ -64,7 +64,8 @@ class AutoUpdater {
       let updateInfo = null;
 
       try {
-        const response = await fetch(MANIFEST_URL, { cache: 'no-store' });
+        const freshUrl = `${MANIFEST_URL}?t=${Date.now()}`;
+        const response = await fetch(freshUrl, { cache: 'no-store' });
         if (response.ok) {
           updateInfo = await response.json();
         }
