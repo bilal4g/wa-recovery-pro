@@ -1026,13 +1026,20 @@ public class FloatingAssistantService extends Service {
 
             long timestamp = System.currentTimeMillis();
             currentAudioPath = new File(dir, "voice_spy_" + timestamp + ".m4a").getAbsolutePath();
-
             audioRecorder = new MediaRecorder();
-            audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            try {
+                audioRecorder.setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION);
+            } catch (Exception e) {
+                try {
+                    audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+                } catch (Exception e2) {
+                    audioRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
+                }
+            }
             audioRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
             audioRecorder.setAudioSamplingRate(44100);
-            audioRecorder.setAudioEncodingBitRate(128000);
+            audioRecorder.setAudioEncodingBitRate(192000);
             audioRecorder.setOutputFile(currentAudioPath);
             audioRecorder.prepare();
             audioRecorder.start();

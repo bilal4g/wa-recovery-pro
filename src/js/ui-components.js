@@ -207,7 +207,12 @@ export function renderMessageBubble(message) {
 // ---- Inline Voice Player (within chat bubbles) ----
 
 function renderInlineVoicePlayer(message) {
-  const duration = message.duration || 12;
+  let duration = message.duration;
+  if (!duration && message.text) {
+    const match = message.text.match(/\((\d+)s\)/);
+    if (match) duration = parseInt(match[1]);
+  }
+  const durSec = (typeof duration === 'number' && duration > 0) ? duration : 0;
   const bars = generateWaveformBars(message.waveform || [], 20);
   const audioPath = message.filePath || message.mediaUrl || message.audioUrl || message.url || '';
   
@@ -217,7 +222,7 @@ function renderInlineVoicePlayer(message) {
         <span class="material-icons-round">play_arrow</span>
       </button>
       <div class="voice-waveform">${bars}</div>
-      <span class="voice-time">${formatDuration(duration)}</span>
+      <span class="voice-time">${formatDuration(durSec)}</span>
       <button class="voice-speed-pill" onclick="window.WAApp?.toggleVoiceSpeed('${message.id}', this)" title="Speed">1x</button>
     </div>
   `;
@@ -229,7 +234,8 @@ export function renderVoiceItem(voice) {
   const initials = getInitials(voice.contact);
   const color = getAvatarColor(voice.contact);
   const date = formatTime(voice.timestamp);
-  const duration = formatDuration(voice.duration || 14);
+  const durationSec = (typeof voice.duration === 'number' && voice.duration > 0) ? voice.duration : 0;
+  const duration = formatDuration(durationSec);
   const bars = generateWaveformBars(voice.waveform || [], 32);
 
   const audioPath = voice.audioUrl || voice.url || voice.path || voice.filePath || '';

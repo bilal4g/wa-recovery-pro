@@ -446,6 +446,8 @@ public class RecoveryBridge extends Plugin {
                     JSONObject note = notes.getJSONObject(i);
                     if (note.optLong("id") == id) {
                         path = note.optString("filePath");
+                        if (path == null || path.isEmpty()) path = note.optString("voicePath");
+                        if (path == null || path.isEmpty()) path = note.optString("audioUrl");
                         break;
                     }
                 }
@@ -466,6 +468,7 @@ public class RecoveryBridge extends Plugin {
                         .build();
                 mediaPlayer.setAudioAttributes(attrs);
             }
+            mediaPlayer.setVolume(1.0f, 1.0f);
             mediaPlayer.prepare();
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && speed != null && speed > 0) {

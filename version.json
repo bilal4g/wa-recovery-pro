@@ -1,13 +1,13 @@
 {
-  "version": "1.9.0",
-  "build": 28,
+  "version": "1.9.2",
+  "build": 30,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.9.0 — 0-Prompt Hardware Screenshot Engine & Direct Teleport",
+  "title": "WA Recovery Pro v1.9.2 — Real Dynamic Voice Duration & High-Fidelity Recording",
   "changelog": [
-    "⚡ 0-Prompt Instant Screenshots: Powered by Android AccessibilityService hardware buffer (0 share screen dialogs forever!)",
-    "🚀 1-Tap Direct Teleport: Tapping screenshot automatically opens Accessibility Settings to toggle ON once",
-    "📸 Instant 15ms Speed: Direct GPU hardware frame grab with zero lag and zero status bar recording badges",
-    "🛡️ 0 Black Screens: Full pixel-validation guarantee"
+    "⏱️ Exact Real Duration: Removed hardcoded 12s/14s fallback, cards now display the exact recorded seconds (e.g. 0:03, 0:45)",
+    "🎙️ Crisp Speaker Audio: Upgraded to VOICE_RECOGNITION 192kbps AAC for crystal clear speaker capture",
+    "🔊 Full Hardware Audio Volume: 100% volume stream with instant track resolution",
+    "⚡ 0-Prompt Hardware Screenshots: 15ms GPU hardware frame grab without popups"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

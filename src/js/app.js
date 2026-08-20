@@ -126,10 +126,18 @@ class WARecoveryApp {
               const thumb = m.thumbnail || m.thumbnail_base64 || m.media_url;
               const isImg = m.type === 'image' || m.type === 'photo' || !!m.is_view_once || (thumb && thumb.startsWith('data:image'));
               
+              let parsedDuration = m.duration;
+              if (!parsedDuration && m.text && m.text.includes('(') && m.text.includes('s)')) {
+                const match = m.text.match(/\((\d+)s\)/);
+                if (match) parsedDuration = parseInt(match[1]);
+              }
+
               await db.addMessage({
+                id: m.id,
                 contact: m.contact,
                 text: m.text,
                 type: isImg ? 'image' : m.type,
+                duration: parsedDuration || m.duration || 0,
                 timestamp: m.timestamp,
                 isDeleted: !!m.is_deleted || !!m.isDeleted,
                 direction: m.direction || 'received',
@@ -137,7 +145,8 @@ class WARecoveryApp {
                 isViewOnce: !!m.is_view_once || !!m.isViewOnce,
                 thumbnailBase64: thumb,
                 mediaThumbnail: thumb,
-                mediaUrl: m.media_url || m.mediaUrl || thumb
+                mediaUrl: m.media_url || m.mediaUrl || thumb,
+                filePath: m.media_url || m.mediaUrl || thumb
               });
 
               // Also ensure photo messages are registered in media gallery
@@ -191,6 +200,7 @@ class WARecoveryApp {
             if (Array.isArray(nativeVoices)) {
               for (const vn of nativeVoices) {
                 const path = vn.audioUrl || vn.voicePath || vn.filePath || '';
+                const dur = typeof vn.duration === 'number' ? vn.duration : parseInt(vn.duration) || 0;
                 await db.addVoiceNote({
                   id: vn.id,
                   contact: vn.contact || 'Voice Note',
@@ -198,7 +208,7 @@ class WARecoveryApp {
                   audioUrl: path,
                   path: path,
                   filePath: path,
-                  duration: vn.duration || 10,
+                  duration: dur,
                   timestamp: vn.timestamp || Date.now(),
                   isDeleted: !!vn.isDeleted
                 });
