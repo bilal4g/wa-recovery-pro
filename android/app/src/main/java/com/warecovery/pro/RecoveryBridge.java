@@ -617,6 +617,95 @@ public class RecoveryBridge extends Plugin {
     }
 
     // =============================================
+    // FLOATING CAPTURE ASSISTANT (OVERLAY SPY BUBBLE)
+    // =============================================
+
+    /**
+     * Check if Display over other apps (SYSTEM_ALERT_WINDOW) permission is granted.
+     */
+    @PluginMethod()
+    public void checkOverlayPermission(PluginCall call) {
+        boolean granted = true;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            granted = Settings.canDrawOverlays(getContext());
+        }
+        JSObject res = new JSObject();
+        res.put("granted", granted);
+        call.resolve(res);
+    }
+
+    /**
+     * Open system settings for "Display over other apps".
+     */
+    @PluginMethod()
+    public void requestOverlayPermission(PluginCall call) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Intent intent = new Intent(
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                        Uri.parse("package:" + getContext().getPackageName())
+                );
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                getContext().startActivity(intent);
+            }
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("Could not open overlay settings: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Start the Floating Capture Assistant Service.
+     */
+    @PluginMethod()
+    public void startFloatingAssistant(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(ctx)) {
+                JSObject res = new JSObject();
+                res.put("success", false);
+                res.put("error", "OVERLAY_PERMISSION_REQUIRED");
+                call.resolve(res);
+                return;
+            }
+
+            Intent intent = new Intent(ctx, FloatingAssistantService.class);
+            intent.setAction(FloatingAssistantService.ACTION_START);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                ctx.startForegroundService(intent);
+            } else {
+                ctx.startService(intent);
+            }
+
+            JSObject res = new JSObject();
+            res.put("success", true);
+            call.resolve(res);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to start floating assistant", e);
+            call.reject("Failed to start assistant: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Stop the Floating Capture Assistant Service.
+     */
+    @PluginMethod()
+    public void stopFloatingAssistant(PluginCall call) {
+        try {
+            Context ctx = getContext();
+            Intent intent = new Intent(ctx, FloatingAssistantService.class);
+            intent.setAction(FloatingAssistantService.ACTION_STOP);
+            ctx.stopService(intent);
+
+            JSObject res = new JSObject();
+            res.put("success", true);
+            call.resolve(res);
+        } catch (Exception e) {
+            call.reject("Failed to stop assistant: " + e.getMessage());
+        }
+    }
+
+    // =============================================
     // NATIVE EVENT CALLBACKS
     // =============================================
 

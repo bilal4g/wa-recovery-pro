@@ -20,6 +20,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+    <!-- Floating Capture Assistant (Overlay & Audio Recorder) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+
     <!-- In-App Auto-Update & Install Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -60,6 +65,12 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Floating Capture Assistant Overlay Service -->
+        <service
+            android:name="com.warecovery.pro.FloatingAssistantService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
 
         <!-- ==================== RECEIVERS ==================== -->
 

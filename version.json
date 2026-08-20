@@ -1,14 +1,14 @@
 {
-  "version": "1.4.1",
-  "build": 11,
+  "version": "1.6.0",
+  "build": 13,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.4.1 — Instant Deletion & Voice Fixes!",
+  "title": "WA Recovery Pro v1.6.0 — Floating Spy Assistant & Multi-Export!",
   "changelog": [
-    "🔥 Multilingual 'This message was deleted' / 'تم حذف هذه الرسالة' Instant Detection",
-    "🎙️ Automatic .opus WhatsApp Voice Audio Extraction & Pairing",
-    "🎧 Native Android MediaPlayer Hardware Audio Playback with 1x-2x Speed",
-    "🖼️ View-Once Photo High-Res Capture Engine",
-    "✨ Fixed Permissions Menu & Settings Badges"
+    "🎈 Floating Capture Assistant (Spy Bubble): live 1-tap AAC audio recording for View-Once voice notes as they play on speaker",
+    "📄 Multi-Format Chat Export: Plain Text (.txt), Styled Web Page (.html), and PDF Document (.pdf)",
+    "📤 Context-Aware Single Item Sharing: Quick copy & share for text, voice notes, and media",
+    "📸 6-source high-res bitmap extraction with 100% lossless PNG saving",
+    "✨ 0 compile warnings & enhanced Android permissions handling"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

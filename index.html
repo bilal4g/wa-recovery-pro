@@ -174,6 +174,24 @@
           </div>
         </div>
 
+        <!-- Floating Capture Assistant (Spy Bubble) Card -->
+        <div class="section-card floating-assistant-banner">
+          <div class="floating-banner-content">
+            <div class="floating-banner-icon">
+              <span class="material-icons-round">bubble_chart</span>
+            </div>
+            <div class="floating-banner-info">
+              <h3>Floating Capture Assistant</h3>
+              <p>Draws a floating spy bubble over WhatsApp to record View-Once voice notes & videos in real-time.</p>
+            </div>
+          </div>
+          <div class="floating-banner-actions">
+            <button class="btn-primary" id="btn-toggle-floating-assistant">
+              <span class="material-icons-round">play_arrow</span> Launch Floating Bubble
+            </button>
+          </div>
+        </div>
+
         <!-- Recent Activity -->
         <div class="section-card">
           <div class="section-header">
@@ -407,6 +425,19 @@
             <div class="toggle-switch">
               <input type="checkbox" id="toggle-viewonce" checked>
               <label for="toggle-viewonce"></label>
+            </div>
+          </div>
+          <div class="settings-item" id="setting-floating-assistant">
+            <div class="settings-item-left">
+              <span class="material-icons-round">bubble_chart</span>
+              <div>
+                <p class="settings-item-title">Floating Spy Bubble</p>
+                <p class="settings-item-desc">Floating overlay over WhatsApp to record audio/screen</p>
+              </div>
+            </div>
+            <div class="toggle-switch">
+              <input type="checkbox" id="toggle-floating-assistant">
+              <label for="toggle-floating-assistant"></label>
             </div>
           </div>
           <div class="settings-item" id="setting-autostart">
@@ -750,6 +781,82 @@
     </div>
   </div>
 
+  <!-- ========================================================
+       CHAT EXPORT OPTIONS BOTTOM SHEET
+       ======================================================== -->
+  <div id="export-modal-overlay" class="modal-overlay hidden">
+    <div class="export-sheet">
+      <div class="sheet-drag-handle"></div>
+      <div class="sheet-header">
+        <div class="sheet-title-row">
+          <span class="material-icons-round" style="color:var(--green-primary);font-size:24px;">file_download</span>
+          <div>
+            <h3 class="sheet-title">Export Chat History</h3>
+            <p class="sheet-subtitle" id="export-modal-contact">Contact Name</p>
+          </div>
+        </div>
+        <button class="sheet-close-btn" id="export-modal-close" aria-label="Close">
+          <span class="material-icons-round">close</span>
+        </button>
+      </div>
+
+      <div class="export-summary-box">
+        <span class="material-icons-round" style="color:var(--accent-blue);font-size:20px;">info</span>
+        <span id="export-modal-count" style="font-size:12px;color:var(--text-secondary);">Loading messages...</span>
+      </div>
+
+      <div class="export-options-grid">
+        <!-- 1. TXT Export -->
+        <button class="export-card-btn" id="export-btn-txt">
+          <div class="export-card-icon" style="background:rgba(59,130,246,0.15);color:#3b82f6;">
+            <span class="material-icons-round">description</span>
+          </div>
+          <div class="export-card-info">
+            <div class="export-card-title">Plain Text (.txt)</div>
+            <div class="export-card-desc">Clean transcript for Notepad, backup, and text logs</div>
+          </div>
+          <span class="material-icons-round export-card-arrow">arrow_forward</span>
+        </button>
+
+        <!-- 2. HTML Export -->
+        <button class="export-card-btn" id="export-btn-html">
+          <div class="export-card-icon" style="background:rgba(16,185,129,0.15);color:#10b981;">
+            <span class="material-icons-round">language</span>
+          </div>
+          <div class="export-card-info">
+            <div class="export-card-title">Interactive Web Page (.html)</div>
+            <div class="export-card-desc">Beautiful WhatsApp dark theme with embedded images</div>
+          </div>
+          <span class="material-icons-round export-card-arrow">arrow_forward</span>
+        </button>
+
+        <!-- 3. PDF / Print Document -->
+        <button class="export-card-btn" id="export-btn-pdf">
+          <div class="export-card-icon" style="background:rgba(239,68,68,0.15);color:#ef4444;">
+            <span class="material-icons-round">picture_as_pdf</span>
+          </div>
+          <div class="export-card-info">
+            <div class="export-card-title">Print / PDF Document (.pdf)</div>
+            <div class="export-card-desc">Formatted table ready to save as PDF or print</div>
+          </div>
+          <span class="material-icons-round export-card-arrow">arrow_forward</span>
+        </button>
+
+        <!-- 4. Quick Share Summary -->
+        <button class="export-card-btn" id="export-btn-share-summary">
+          <div class="export-card-icon" style="background:rgba(168,85,247,0.15);color:#a855f7;">
+            <span class="material-icons-round">share</span>
+          </div>
+          <div class="export-card-info">
+            <div class="export-card-title">Share Summary to Apps</div>
+            <div class="export-card-desc">Quick report of deleted messages for WhatsApp/Telegram</div>
+          </div>
+          <span class="material-icons-round export-card-arrow">arrow_forward</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div id="toast-container" class="toast-container"></div>
 
@@ -773,6 +880,7 @@
   <script type="module" src="/src/js/ui-components.js"></script>
   <script type="module" src="/src/js/media-manager.js"></script>
   <script type="module" src="/src/js/voice-options.js"></script>
+  <script type="module" src="/src/js/export-manager.js"></script>
   <script type="module" src="/src/js/auto-updater.js"></script>
   <script type="module" src="/src/js/app.js"></script>
 </body>

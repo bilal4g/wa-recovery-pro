@@ -12,6 +12,7 @@ import {
 } from './ui-components.js';
 import mediaManager from './media-manager.js';
 import voiceOptions from './voice-options.js';
+import exportManager from './export-manager.js';
 import autoUpdater from './auto-updater.js';
 
 class WARecoveryApp {
@@ -674,24 +675,15 @@ class WARecoveryApp {
 
   async exportChat() {
     if (!this.currentChat) return;
-    const messages = await db.getMessagesByContact(this.currentChat);
-    let text = `Chat Export: ${this.currentChat}\nExported: ${new Date().toLocaleString()}\n${'='.repeat(40)}\n\n`;
-    
-    for (const msg of messages) {
-      const time = new Date(msg.timestamp).toLocaleString();
-      const deleted = msg.isDeleted ? ' [DELETED]' : '';
-      const viewOnce = msg.isViewOnce ? ' [VIEW ONCE]' : '';
-      text += `[${time}] ${msg.direction === 'sent' ? 'You' : msg.contact}${deleted}${viewOnce}: ${msg.text || `[${msg.type}]`}\n`;
-    }
+    exportManager.openExportModal(this.currentChat);
+  }
 
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `wa_chat_${this.currentChat.replace(/\s+/g, '_')}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('Chat exported successfully', 'success');
+  shareMessage(messageId) {
+    exportManager.shareSingleMessage(messageId);
+  }
+
+  copyMessage(messageId) {
+    exportManager.copyMessageText(messageId);
   }
 
   // =============================================
@@ -954,6 +946,63 @@ class WARecoveryApp {
 
     if (enableBtn) {
       enableBtn.addEventListener('click', () => this.showOnboarding());
+    }
+
+    // Floating Capture Assistant Toggle & Dashboard Launch Button
+    const toggleFloating = document.getElementById('toggle-floating-assistant');
+    const btnLaunchFloating = document.getElementById('btn-toggle-floating-assistant');
+
+    const handleToggleFloating = async (shouldStart) => {
+      if (!this.bridge) {
+        showToast(shouldStart ? '🎈 Floating Spy Bubble active! Open WhatsApp to capture' : 'Floating Assistant stopped', 'info');
+        if (btnLaunchFloating) {
+          btnLaunchFloating.innerHTML = shouldStart
+            ? '<span class="material-icons-round">stop</span> Stop Floating Bubble'
+            : '<span class="material-icons-round">play_arrow</span> Launch Floating Bubble';
+          btnLaunchFloating.classList.toggle('btn-active', shouldStart);
+        }
+        return;
+      }
+      try {
+        if (shouldStart) {
+          const perm = await this.bridge.checkOverlayPermission();
+          if (!perm || !perm.granted) {
+            showToast('⚠️ Please allow "Display over other apps" permission', 'warning', 3000);
+            await this.bridge.requestOverlayPermission();
+            if (toggleFloating) toggleFloating.checked = false;
+            return;
+          }
+          const res = await this.bridge.startFloatingAssistant();
+          if (res && res.success) {
+            showToast('🎈 Floating Spy Bubble is active! Open WhatsApp to capture', 'success', 3500);
+            if (toggleFloating) toggleFloating.checked = true;
+            if (btnLaunchFloating) {
+              btnLaunchFloating.innerHTML = '<span class="material-icons-round">stop</span> Stop Floating Bubble';
+              btnLaunchFloating.classList.add('btn-active');
+            }
+          }
+        } else {
+          await this.bridge.stopFloatingAssistant();
+          showToast('Floating Assistant stopped', 'info');
+          if (toggleFloating) toggleFloating.checked = false;
+          if (btnLaunchFloating) {
+            btnLaunchFloating.innerHTML = '<span class="material-icons-round">play_arrow</span> Launch Floating Bubble';
+            btnLaunchFloating.classList.remove('btn-active');
+          }
+        }
+      } catch (e) {
+        showToast('Assistant error: ' + e, 'error');
+      }
+    };
+
+    if (toggleFloating) {
+      toggleFloating.addEventListener('change', (e) => handleToggleFloating(e.target.checked));
+    }
+    if (btnLaunchFloating) {
+      btnLaunchFloating.addEventListener('click', () => {
+        const isRunning = btnLaunchFloating.classList.contains('btn-active');
+        handleToggleFloating(!isRunning);
+      });
     }
   }
 

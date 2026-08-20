@@ -2313,3 +2313,219 @@ body {
 .btn-check-perms-top .material-icons-round {
   font-size: 16px;
 }
+
+/* ==========================================================================
+   CHAT EXPORT OPTIONS BOTTOM SHEET & CARDS
+   ========================================================================== */
+.export-sheet {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  padding: var(--space-4) var(--space-5) var(--space-8);
+  width: 100%;
+  max-width: 540px;
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
+  margin-top: auto;
+}
+
+.export-summary-box {
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px;
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-options-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-card-btn {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-xl);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--duration-fast);
+  color: var(--text-primary);
+  width: 100%;
+}
+
+.export-card-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: var(--border-active);
+  transform: translateY(-1px);
+}
+
+.export-card-btn:active {
+  transform: translateY(0);
+}
+
+.export-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.export-card-icon .material-icons-round {
+  font-size: 24px;
+}
+
+.export-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.export-card-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.export-card-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.export-card-arrow {
+  color: var(--text-muted);
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: transform var(--duration-fast);
+}
+
+.export-card-btn:hover .export-card-arrow {
+  color: var(--green-primary);
+  transform: translateX(3px);
+}
+
+/* ==========================================================================
+   MESSAGE BUBBLE QUICK ACTIONS
+   ========================================================================== */
+.bubble-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bubble-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bubble-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  background: rgba(255, 255, 255, 0.07);
+  border: none;
+  border-radius: var(--radius-full);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--duration-fast);
+}
+
+.bubble-action-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-primary);
+}
+
+.bubble-action-btn .material-icons-round {
+  font-size: 12px;
+}
+
+/* Floating Assistant Banner */
+.floating-assistant-banner {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.12), rgba(59, 130, 246, 0.08));
+  border: 1px solid rgba(168, 85, 247, 0.25);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  margin-top: 14px;
+}
+
+.floating-banner-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.floating-banner-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-lg);
+  background: rgba(168, 85, 247, 0.2);
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.floating-banner-icon .material-icons-round {
+  font-size: 26px;
+}
+
+.floating-banner-info h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.floating-banner-info p {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.floating-banner-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-active {
+  background: linear-gradient(135deg, #ef4444, #b91c1c) !important;
+  color: white !important;
+}
+
+/* Print Stylesheet */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .app-header, .search-bar, .bottom-nav, .modal-overlay, #toast-container {
+    display: none !important;
+  }
+  .page-container {
+    padding: 0 !important;
+  }
+}
+

@@ -15,10 +15,12 @@ import java.io.FileOutputStream;
  * Captures thumbnails and previews from WhatsApp view-once messages
  * via notification data before they're opened and disappear.
  */
+@SuppressWarnings("deprecation")
 public class ViewOnceCapture {
 
     private static final String TAG = "WARecovery_ViewOnce";
 
+    @SuppressWarnings("unused")
     private final android.content.Context context;
     private final DatabaseHelper dbHelper;
     private final String captureDir;
@@ -93,11 +95,11 @@ public class ViewOnceCapture {
      */
     private String saveBitmap(Bitmap bitmap, String contact, long timestamp) {
         try {
-            String filename = "viewonce_" + timestamp + "_" + sanitizeFilename(contact) + ".jpg";
+            String filename = "viewonce_" + timestamp + "_" + sanitizeFilename(contact) + ".png";
             File file = new File(captureDir, filename);
 
             try (FileOutputStream fos = new FileOutputStream(file)) {
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos);
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos);
                 fos.flush();
             }
 

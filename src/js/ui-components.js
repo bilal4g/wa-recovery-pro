@@ -177,10 +177,35 @@ export function renderMessageBubble(message) {
     content += renderInlineVoicePlayer(message);
   }
 
+  let actions = '';
+  if (message.type === 'text' || (message.text && message.type !== 'voice' && message.type !== 'image')) {
+    actions = `
+      <div class="bubble-actions">
+        <button class="bubble-action-btn" onclick="window.WAApp?.copyMessage('${message.id}')" title="Copy text">
+          <span class="material-icons-round">content_copy</span> Copy
+        </button>
+        <button class="bubble-action-btn" onclick="window.WAApp?.shareMessage('${message.id}')" title="Share text">
+          <span class="material-icons-round">share</span> Share
+        </button>
+      </div>
+    `;
+  } else if (message.type === 'image' || message.isViewOnce) {
+    actions = `
+      <div class="bubble-actions">
+        <button class="bubble-action-btn" onclick="window.WAApp?.shareMessage('${message.id}')" title="Share Photo">
+          <span class="material-icons-round">share</span> Share Photo
+        </button>
+      </div>
+    `;
+  }
+
   return `
     <div class="${cssClass}" data-id="${message.id}">
       ${content}
-      <div class="message-time">${time}</div>
+      <div class="bubble-footer">
+        ${actions}
+        <span class="message-time">${time}</span>
+      </div>
     </div>
   `;
 }

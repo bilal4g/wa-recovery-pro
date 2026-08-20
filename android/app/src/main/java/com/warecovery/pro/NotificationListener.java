@@ -250,42 +250,123 @@ public class NotificationListener extends NotificationListenerService {
         String lower = text.toLowerCase().trim();
         return lower.equals("photo") || lower.equals("video") ||
                lower.equals("📷 photo") || lower.equals("📹 video") ||
+               lower.equals("🔊 audio") || lower.equals("🎵 audio") ||
                lower.equals("صورة") || lower.equals("فيديو") ||
-               lower.contains("view once") || lower.contains("عرض لمرة واحدة");
+               lower.equals("رسالة صوتية") ||
+               lower.contains("view once") || lower.contains("عرض لمرة واحدة") ||
+               lower.contains("مرة واحدة");
     }
 
+    /**
+     * Aggressively extracts the highest-quality bitmap from every possible notification field.
+     * Checks: EXTRA_PICTURE, EXTRA_PICTURE_ICON, EXTRA_LARGE_ICON, MessagingStyle images,
+     * WearableExtender backgrounds, and all Bundle keys for any hidden Bitmap data.
+     */
     @SuppressWarnings("deprecation")
     private Bitmap extractBitmap(Notification notification, Bundle extras) {
-        try {
-            if (extras != null) {
-                Bitmap pic = extras.getParcelable(Notification.EXTRA_PICTURE);
-                if (pic != null) return pic;
+        Bitmap best = null;
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        try {
+            if (extras == null) return null;
+
+            // 1. EXTRA_PICTURE — BigPictureStyle (highest quality, usually the actual photo)
+            Bitmap pic = extras.getParcelable(Notification.EXTRA_PICTURE);
+            if (pic != null) {
+                best = pickLarger(best, pic);
+            }
+
+            // 2. EXTRA_PICTURE_ICON (Android 12+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
                     Object picIcon = extras.get(Notification.EXTRA_PICTURE_ICON);
                     if (picIcon instanceof android.graphics.drawable.Icon) {
-                        android.graphics.drawable.Drawable drawable = ((android.graphics.drawable.Icon) picIcon).loadDrawable(this);
+                        android.graphics.drawable.Drawable drawable =
+                                ((android.graphics.drawable.Icon) picIcon).loadDrawable(this);
                         if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
-                            return ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+                            best = pickLarger(best,
+                                    ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap());
                         }
                     }
-                }
-
-                Bitmap largeIcon = extras.getParcelable(Notification.EXTRA_LARGE_ICON);
-                if (largeIcon != null) return largeIcon;
+                } catch (Exception ignored) {}
             }
+
+            // 3. EXTRA_LARGE_ICON (contact photo or media preview)
+            Bitmap largeIcon = extras.getParcelable(Notification.EXTRA_LARGE_ICON);
+            if (largeIcon != null) {
+                best = pickLarger(best, largeIcon);
+            }
+
+            // 4. Scan ALL extras keys for any hidden Bitmap values
+            for (String key : extras.keySet()) {
+                try {
+                    Object val = extras.get(key);
+                    if (val instanceof Bitmap) {
+                        best = pickLarger(best, (Bitmap) val);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 5. WearableExtender — may contain background bitmap
+            try {
+                Notification.WearableExtender wearable = new Notification.WearableExtender(notification);
+                Bitmap bg = wearable.getBackground();
+                if (bg != null) {
+                    best = pickLarger(best, bg);
+                }
+            } catch (Exception ignored) {}
+
+            // 6. MessagingStyle messages — may contain image URIs (Android 9+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try {
+                    // Use reflection to handle API differences
+                    java.lang.reflect.Method method = Notification.MessagingStyle.class
+                            .getMethod("extractMessagingStyleFromNotification", Notification.class);
+                    Object style = method.invoke(null, notification);
+                    if (style instanceof Notification.MessagingStyle) {
+                        for (Notification.MessagingStyle.Message msg :
+                                ((Notification.MessagingStyle) style).getMessages()) {
+                            if (msg.getDataUri() != null && msg.getDataMimeType() != null
+                                    && msg.getDataMimeType().startsWith("image/")) {
+                                try {
+                                    java.io.InputStream is = getContentResolver().openInputStream(msg.getDataUri());
+                                    if (is != null) {
+                                        Bitmap msgBmp = android.graphics.BitmapFactory.decodeStream(is);
+                                        is.close();
+                                        if (msgBmp != null) {
+                                            best = pickLarger(best, msgBmp);
+                                        }
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+
         } catch (Exception e) {
-            Log.w(TAG, "Could not extract bitmap from notification");
+            Log.w(TAG, "Error extracting bitmap from notification", e);
         }
-        return null;
+
+        if (best != null) {
+            Log.i(TAG, "📸 Extracted bitmap: " + best.getWidth() + "x" + best.getHeight());
+        }
+        return best;
     }
 
+    /** Returns whichever bitmap has more pixels. */
+    private Bitmap pickLarger(Bitmap a, Bitmap b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        return (b.getWidth() * b.getHeight() > a.getWidth() * a.getHeight()) ? b : a;
+    }
+
+    /** Maximum quality JPEG encoding for the best possible saved image. */
     private String bitmapToBase64(Bitmap bitmap) {
         try {
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream);
             byte[] byteArray = outputStream.toByteArray();
-            return "data:image/jpeg;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP);
+            return "data:image/png;base64," + Base64.encodeToString(byteArray, Base64.NO_WRAP);
         } catch (Exception e) {
             Log.e(TAG, "Error converting bitmap to base64", e);
             return null;
