@@ -542,9 +542,17 @@ public class FloatingAssistantService extends Service {
 
                     @Override
                     public void onFailure(String error) {
-                        Log.e(TAG, "Accessibility screenshot failed: " + error);
+                        Log.e(TAG, "Accessibility screenshot failed: " + error + " — falling back to MediaProjection");
                         if (floatingView != null) {
                             new Handler(Looper.getMainLooper()).post(() -> floatingView.setVisibility(View.VISIBLE));
+                        }
+                        if (mediaProjection == null || persistentVirtualDisplay == null) {
+                            Intent intent = new Intent(FloatingAssistantService.this, ScreenCaptureActivity.class);
+                            intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);
+                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                            startActivity(intent);
+                        } else {
+                            captureRealPixelScreenshot();
                         }
                     }
                 });

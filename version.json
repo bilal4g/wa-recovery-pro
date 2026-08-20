@@ -1,13 +1,13 @@
 {
-  "version": "1.9.8",
-  "build": 36,
+  "version": "1.9.9",
+  "build": 37,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.9.8 — Direct Audio File Sharing & High-Sensitivity MIC Capture",
+  "title": "WA Recovery Pro v1.9.9 — Native Voice Note Sync & Dual Screenshot Fallback",
   "changelog": [
-    "🎵 Pure Audio File Sharing: Direct .m4a audio file sharing to WhatsApp with full URI read permissions",
-    "🎙️ High-Sensitivity Audio Recording: Switched to standard MIC source without voice-gate suppression to record speaker audio",
-    "🎥 Universal Video Recorder: 16-pixel aligned H.264 engine",
-    "🛡️ 0 False Deletions: Fixed notification cancel triggers"
+    "🔄 Native Voice Sync: getVoiceNotes bridge syncs SQLite voice recordings with complete audio paths to Web UI",
+    "🔊 Full Playback & Sharing: Voice notes now properly load on-device paths for instant speaker playback and direct WhatsApp sharing",
+    "📸 Dual Screenshot Fallback: Automatically falls back to MediaProjection if Accessibility is unavailable on OEM",
+    "🎥 16-Pixel Aligned Video Recording: High compatibility across all Android devices"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

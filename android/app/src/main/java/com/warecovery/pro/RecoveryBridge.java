@@ -11,7 +11,6 @@ import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
-import androidx.core.content.FileProvider;
 
 import android.Manifest;
 import com.getcapacitor.JSObject;
@@ -401,12 +400,13 @@ public class RecoveryBridge extends Plugin {
         try {
             JSONArray voiceNotes = dbHelper.getVoiceNotesAsJSON();
             JSObject result = new JSObject();
-            result.put("voiceNotes", voiceNotes.toString());
+            result.put("voiceNotes", voiceNotes);
             result.put("count", voiceNotes.length());
             result.put("success", true);
             call.resolve(result);
         } catch (Exception e) {
-            call.reject("Failed to get voice notes", e);
+            Log.e(TAG, "Failed to get voice notes", e);
+            call.reject("Failed to get voice notes: " + e.getMessage());
         }
     }
 
@@ -509,8 +509,8 @@ public class RecoveryBridge extends Plugin {
             if (audioManager != null) {
                 try {
                     @SuppressWarnings("deprecation")
-                    boolean speakerSuccess = true;
-                    audioManager.setSpeakerphoneOn(true);
+                    android.media.AudioManager am = audioManager;
+                    am.setSpeakerphoneOn(true);
                 } catch (Exception ignored) {}
             }
 
@@ -925,11 +925,14 @@ public class RecoveryBridge extends Plugin {
 
         try {
             Context ctx = getContext();
-            Uri contentUri = FileProvider.getUriForFile(
-                    ctx,
-                    ctx.getPackageName() + ".fileprovider",
-                    file
-            );
+            Uri contentUri;
+            try {
+                Class<?> fpClass = Class.forName("androidx.core.content.FileProvider");
+                java.lang.reflect.Method getUri = fpClass.getMethod("getUriForFile", Context.class, String.class, File.class);
+                contentUri = (Uri) getUri.invoke(null, ctx, ctx.getPackageName() + ".fileprovider", file);
+            } catch (Exception e) {
+                contentUri = Uri.fromFile(file);
+            }
 
             if (file.getName().endsWith(".m4a") || file.getName().endsWith(".mp4")) {
                 mimeType = "audio/mp4";

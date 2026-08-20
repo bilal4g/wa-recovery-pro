@@ -350,6 +350,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             vn.put("voicePath", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
             vn.put("filePath", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
             vn.put("audioUrl", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
+            vn.put("url", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
+            vn.put("path", cursor.getString(cursor.getColumnIndexOrThrow(COL_VOICE_PATH)));
             vn.put("duration", cursor.getInt(cursor.getColumnIndexOrThrow(COL_DURATION)));
             vn.put("timestamp", cursor.getLong(cursor.getColumnIndexOrThrow(COL_TIMESTAMP)));
             vn.put("isDeleted", cursor.getInt(cursor.getColumnIndexOrThrow(COL_IS_DELETED)) == 1);
