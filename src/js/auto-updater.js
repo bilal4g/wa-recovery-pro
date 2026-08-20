@@ -63,14 +63,29 @@ class AutoUpdater {
 
       let updateInfo = null;
 
+      // 1. Try GitHub API for instant 0-second release delivery
       try {
-        const freshUrl = `${MANIFEST_URL}?t=${Date.now()}`;
-        const response = await fetch(freshUrl, { cache: 'no-store' });
-        if (response.ok) {
-          updateInfo = await response.json();
+        const apiResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/version.json?t=${Date.now()}`, {
+          headers: { 'Accept': 'application/vnd.github.v3+json' }
+        });
+        if (apiResp.ok) {
+          const apiData = await apiResp.json();
+          if (apiData.content) {
+            const decoded = decodeURIComponent(escape(atob(apiData.content.replace(/\s/g, ''))));
+            updateInfo = JSON.parse(decoded);
+          }
         }
-      } catch (e) {
-        console.log('Local manifest fallback');
+      } catch (e) {}
+
+      // 2. Fallback to raw URL
+      if (!updateInfo) {
+        try {
+          const freshUrl = `${MANIFEST_URL}?t=${Date.now()}`;
+          const response = await fetch(freshUrl, { cache: 'no-store' });
+          if (response.ok) {
+            updateInfo = await response.json();
+          }
+        } catch (e) {}
       }
 
       if (!updateInfo) {

@@ -1,13 +1,13 @@
 {
-  "version": "1.3.1",
-  "build": 5,
+  "version": "1.3.2",
+  "build": 6,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.3.1 Live Update!",
+  "title": "WA Recovery Pro v1.3.2 Live Update!",
   "changelog": [
-    "🚀 100% In-App Auto-Update Test Successful",
-    "🐛 Zero duplicate messages & voice notes",
-    "📷 Instant View-Once Media Capture Enabled",
-    "⚡ 0ms Fast Startup Engine"
+    "🚀 Zero-Delay Instant In-App Update Engine",
+    "🐛 Messages & Voice Notes Duplicates Eliminated",
+    "📷 Automatic View-Once Photo Recovery",
+    "⚡ Fast 0ms App Launch"
   ],
   "hasLivePatch": true,
   "patchSize": "240 KB",
