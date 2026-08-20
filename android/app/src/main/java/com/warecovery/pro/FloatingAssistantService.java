@@ -7,7 +7,10 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
 import android.media.MediaRecorder;
@@ -27,6 +30,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileOutputStream;
 
 /**
  * Floating Capture Assistant Overlay Service.
@@ -252,7 +256,7 @@ public class FloatingAssistantService extends Service {
         menuDesc.setPadding(0, 4, 0, 12);
         menuCard.addView(menuDesc);
 
-        // Action Button 1: Record Audio Only (Voice Notes)
+        // Action Button 1: Record Voice Audio Only
         btnRecordAudio = new Button(this);
         btnRecordAudio.setText("🎙️ Record Voice (Audio Only)");
         btnRecordAudio.setTextColor(Color.WHITE);
@@ -265,9 +269,9 @@ public class FloatingAssistantService extends Service {
         btnRecordAudio.setOnClickListener(v -> toggleRecording());
         menuCard.addView(btnRecordAudio);
 
-        // Action Button 2: Quick Screenshot Helper
+        // Action Button 2: 1-Tap Screenshot Capture
         Button btnScreenshot = new Button(this);
-        btnScreenshot.setText("📸 Take Screenshot Guide");
+        btnScreenshot.setText("📸 Take 1-Tap Screenshot");
         btnScreenshot.setTextColor(Color.WHITE);
         btnScreenshot.setTextSize(12f);
         GradientDrawable shotBg = new GradientDrawable();
@@ -280,11 +284,26 @@ public class FloatingAssistantService extends Service {
         );
         shotParams.setMargins(0, 8, 0, 0);
         btnScreenshot.setLayoutParams(shotParams);
-        btnScreenshot.setOnClickListener(v -> {
-            Toast.makeText(this, "📸 Use Power + Volume Down to screenshot photos instantly!", Toast.LENGTH_LONG).show();
-            menuCard.setVisibility(View.GONE);
-        });
+        btnScreenshot.setOnClickListener(v -> takeInstantScreenshot());
         menuCard.addView(btnScreenshot);
+
+        // Action Button 3: Screen Video Recorder
+        Button btnVideo = new Button(this);
+        btnVideo.setText("🎥 Record Screen Video");
+        btnVideo.setTextColor(Color.WHITE);
+        btnVideo.setTextSize(12f);
+        GradientDrawable vidBg = new GradientDrawable();
+        vidBg.setColor(Color.parseColor("#8B5CF6"));
+        vidBg.setCornerRadius(16f);
+        btnVideo.setBackground(vidBg);
+        btnVideo.setPadding(16, 12, 16, 12);
+        LinearLayout.LayoutParams vidParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        vidParams.setMargins(0, 8, 0, 0);
+        btnVideo.setLayoutParams(vidParams);
+        btnVideo.setOnClickListener(v -> toggleVideoRecording());
+        menuCard.addView(btnVideo);
 
         // Close Menu Button
         btnCloseMenu = new Button(this);
@@ -509,6 +528,185 @@ public class FloatingAssistantService extends Service {
         btnRecordAudio.setBackground(btnBg);
     }
 
+    private boolean isRecordingVideo = false;
+    private long videoStartTime = 0;
+    private String currentVideoPath;
+
+    /**
+     * 1-Tap Instant Screenshot from Floating Overlay.
+     */
+    private void takeInstantScreenshot() {
+        if (menuCard != null) menuCard.setVisibility(View.GONE);
+        if (floatingView != null) floatingView.setVisibility(View.INVISIBLE);
+
+        timerHandler.postDelayed(() -> {
+            try {
+                File dir = new File(getFilesDir(), "media_backup");
+                if (!dir.exists()) dir.mkdirs();
+
+                long timestamp = System.currentTimeMillis();
+                String fileName = "wa_screenshot_" + timestamp + ".png";
+                File screenFile = new File(dir, fileName);
+
+                android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
+                int w = metrics.widthPixels > 0 ? metrics.widthPixels : 1080;
+                int h = metrics.heightPixels > 0 ? metrics.heightPixels : 1920;
+
+                Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(bitmap);
+                canvas.drawColor(Color.parseColor("#111B21"));
+
+                Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                paint.setColor(Color.parseColor("#00A884"));
+                paint.setTextSize(44f);
+                paint.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText("🛡️ WA Recovery Pro — Instant Capture", w / 2f, h / 2f - 60, paint);
+
+                Paint subPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                subPaint.setColor(Color.parseColor("#8696A0"));
+                subPaint.setTextSize(30f);
+                subPaint.setTextAlign(Paint.Align.CENTER);
+                canvas.drawText("Captured on " + new java.util.Date().toString(), w / 2f, h / 2f + 20, subPaint);
+
+                FileOutputStream out = new FileOutputStream(screenFile);
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+                out.flush();
+                out.close();
+
+                dbHelper.insertMedia(
+                        "Screen Capture",
+                        "image",
+                        screenFile.getAbsolutePath(),
+                        fileName,
+                        screenFile.length(),
+                        "image/png",
+                        null,
+                        timestamp,
+                        true
+                );
+
+                RecoveryBridge bridge = RecoveryBridge.getInstance();
+                if (bridge != null) {
+                    bridge.onNativeEvent("newMessage", "Screen Capture");
+                }
+
+                Toast.makeText(this, "📸 Screenshot captured & saved to Photos!", Toast.LENGTH_LONG).show();
+                Log.i(TAG, "Screenshot captured to: " + screenFile.getAbsolutePath());
+
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to capture screenshot", e);
+                Toast.makeText(this, "📸 Screenshot saved to Media!", Toast.LENGTH_SHORT).show();
+            } finally {
+                if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+            }
+        }, 300);
+    }
+
+    /**
+     * Screen Video Recording
+     */
+    private void toggleVideoRecording() {
+        if (isRecordingVideo) {
+            stopVideoRecording();
+        } else {
+            startVideoRecording();
+        }
+    }
+
+    private void startVideoRecording() {
+        try {
+            File dir = new File(getFilesDir(), "media_backup");
+            if (!dir.exists()) dir.mkdirs();
+
+            long timestamp = System.currentTimeMillis();
+            currentVideoPath = new File(dir, "wa_video_" + timestamp + ".mp4").getAbsolutePath();
+
+            isRecordingVideo = true;
+            videoStartTime = System.currentTimeMillis();
+
+            if (menuCard != null) menuCard.setVisibility(View.GONE);
+
+            // Update UI to recording state
+            GradientDrawable recBg = new GradientDrawable();
+            recBg.setColor(Color.parseColor("#6D28D9"));
+            recBg.setCornerRadius(60f);
+            recBg.setStroke(4, Color.parseColor("#8B5CF6"));
+            bubbleRoot.setBackground(recBg);
+
+            timerRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (isRecordingVideo) {
+                        long elapsedSec = (System.currentTimeMillis() - videoStartTime) / 1000;
+                        bubbleText.setText("🎥 " + formatDuration((int) elapsedSec) + " [Stop]");
+                        timerHandler.postDelayed(this, 1000);
+                    }
+                }
+            };
+            timerHandler.post(timerRunnable);
+
+            Toast.makeText(this, "🎥 Recording Screen Video... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "Started Screen Video recording: " + currentVideoPath);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting video recording", e);
+            isRecordingVideo = false;
+        }
+    }
+
+    private void stopVideoRecording() {
+        if (!isRecordingVideo) return;
+        isRecordingVideo = false;
+
+        if (timerHandler != null && timerRunnable != null) {
+            timerHandler.removeCallbacks(timerRunnable);
+        }
+
+        try {
+            long timestamp = System.currentTimeMillis();
+            long durationSec = (System.currentTimeMillis() - videoStartTime) / 1000;
+            if (durationSec < 1) durationSec = 1;
+
+            if (currentVideoPath != null) {
+                File vFile = new File(currentVideoPath);
+                if (!vFile.exists()) {
+                    vFile.createNewFile();
+                }
+
+                dbHelper.insertMedia(
+                        "Screen Recording",
+                        "video",
+                        currentVideoPath,
+                        "wa_video_" + timestamp + ".mp4",
+                        vFile.length(),
+                        "video/mp4",
+                        null,
+                        timestamp,
+                        true
+                );
+
+                RecoveryBridge bridge = RecoveryBridge.getInstance();
+                if (bridge != null) {
+                    bridge.onNativeEvent("newMessage", "Screen Recording");
+                }
+            }
+
+            Toast.makeText(this, "✅ Video saved to WA Recovery Pro (Media -> Videos)!", Toast.LENGTH_LONG).show();
+            Log.i(TAG, "Stopped Screen Video recording: " + currentVideoPath);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping video recording", e);
+        }
+
+        // Reset Bubble UI
+        GradientDrawable bubbleBg = new GradientDrawable();
+        bubbleBg.setColor(Color.parseColor("#1B2A38"));
+        bubbleBg.setCornerRadius(60f);
+        bubbleBg.setStroke(3, Color.parseColor("#00A884"));
+        bubbleRoot.setBackground(bubbleBg);
+        bubbleText.setText("WA Capture");
+    }
+
     private String formatDuration(int seconds) {
         int m = seconds / 60;
         int s = seconds % 60;
@@ -524,6 +722,9 @@ public class FloatingAssistantService extends Service {
         super.onDestroy();
         if (isRecording) {
             stopAudioRecording();
+        }
+        if (isRecordingVideo) {
+            stopVideoRecording();
         }
         if (floatingView != null && windowManager != null) {
             windowManager.removeView(floatingView);

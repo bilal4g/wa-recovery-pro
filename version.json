@@ -1,14 +1,15 @@
 {
-  "version": "1.6.3",
-  "build": 16,
+  "version": "1.7.0",
+  "build": 17,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.6.3 — Zero Freeze (ANR) & Performance Engine",
+  "title": "WA Recovery Pro v1.7.0 — WAMR Multi-Message Engine & 1-Tap Media Suite",
   "changelog": [
-    "⚡ Fixed 'WA Recovery Pro isn't responding' by offloading media scanning to background thread",
-    "⚡ High-performance O(1) in-memory message caching (0 UI freeze)",
-    "🎙️ Automatic Android Microphone Permission dialog prompt",
-    "🔙 Hardware and gesture Back button support (close chats & modals)",
-    "🎈 Floating Spy Bubble for live View-Once audio capture"
+    "📨 WAMR-Grade Multi-Message Recovery: Extracts every single batched message from WhatsApp bundles",
+    "🚫 Intelligent Call Notification Filter: Ignores incoming/missed call alerts",
+    "🎙️ Exact Voice Note Playback: Fixed audio binding to play the exact recorded sound",
+    "📸 1-Tap Floating Screenshot: Takes instant screen captures & auto-saves to Photos",
+    "🎥 Screen Video Recorder: 1-Tap video recording directly from the floating bubble",
+    "⚡ 0% Freeze / ANR background architecture"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

@@ -186,14 +186,28 @@ class VoiceOptionsManager {
   }
 
   /**
-   * Share via Native System Share Sheet (WhatsApp, Telegram, etc.).
+   * Share via Native System Share Sheet (WhatsApp, Telegram, etc.) as an actual Audio File.
    */
   async shareSystem() {
     if (!this.currentVoice) return;
 
-    const shareText = `🎙️ [Recovered Voice Note]\nSender: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`;
-
+    const audioPath = this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
     const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
+
+    if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
+      try {
+        await bridge.shareMedia({
+          path: audioPath,
+          mimeType: 'audio/*',
+          title: `Voice Note from ${this.currentVoice.contact}`
+        });
+        return;
+      } catch (e) {
+        console.log('Native shareMedia fallback to text:', e);
+      }
+    }
+
+    const shareText = `🎙️ [Recovered Voice Note]\nSender: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`;
     if (bridge) {
       try {
         await bridge.shareText({ text: shareText, title: `Voice note from ${this.currentVoice.contact}` });
@@ -220,10 +234,26 @@ class VoiceOptionsManager {
   }
 
   /**
-   * Direct Share to WhatsApp.
+   * Direct Share to WhatsApp as an actual Audio File.
    */
-  shareToWhatsApp() {
+  async shareToWhatsApp() {
     if (!this.currentVoice) return;
+
+    const audioPath = this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
+
+    if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
+      try {
+        await bridge.shareMedia({
+          path: audioPath,
+          mimeType: 'audio/*',
+          title: `Send Voice Note to WhatsApp`
+        });
+        return;
+      } catch (e) {
+        console.log('Share to WhatsApp media fallback:', e);
+      }
+    }
 
     const message = encodeURIComponent(
       `🎙️ [Recovered Voice Message]\nFrom: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`

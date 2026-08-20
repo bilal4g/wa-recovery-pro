@@ -240,8 +240,10 @@ export function renderVoiceItem(voice) {
   const duration = formatDuration(voice.duration || 14);
   const bars = generateWaveformBars(voice.waveform || [], 32);
 
+  const audioPath = voice.audioUrl || voice.url || voice.path || '';
+
   return `
-    <div class="voice-item" data-voice-id="${voice.id}">
+    <div class="voice-item" data-voice-id="${voice.id}" data-audio-url="${escapeHtml(audioPath)}">
       <div class="voice-item-header">
         <div class="voice-avatar" style="background:${color}">${initials}</div>
         <div class="voice-info">

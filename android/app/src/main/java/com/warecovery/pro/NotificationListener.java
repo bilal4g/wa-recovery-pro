@@ -73,21 +73,26 @@ public class NotificationListener extends NotificationListenerService {
             long timestamp = sbn.getPostTime();
             String key = sbn.getKey();
 
-            // Skip summary/group headers
-            if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
-            if (contact.equals("WhatsApp") || contact.equals("WhatsApp Business")) return;
-
-            // 1. DELETION EVENT DETECTION
-            // WhatsApp updates the notification to "This message was deleted" / "تم حذف هذه الرسالة"
-            if (isDeletionNotification(text)) {
-                Log.d(TAG, "⚠️ Deletion event detected from " + contact + "!");
-                dbHelper.markLatestMessageDeleted(contact);
-                notifyWebLayer("messageDeleted", contact);
-                return; // Do not insert the deletion string as a normal message
+            // 1. FILTER OUT CALL NOTIFICATIONS & SYSTEM NOTIFICATIONS
+            if (isCallNotification(notification, contact, text)) {
+                Log.d(TAG, "Ignoring WhatsApp call notification: " + text);
+                return;
             }
 
-            // Detect message type
-            String type = detectMessageType(extras, text);
+            if (contact.equals("WhatsApp") || contact.equals("WhatsApp Business") ||
+                contact.equalsIgnoreCase("Backup in progress") || contact.equalsIgnoreCase("جاري النسخ الاحتياطي")) {
+                return;
+            }
+
+            // 2. PARSE MULTI-MESSAGE BUNDLES (MESSAGINGSTYLE)
+            // When multiple messages arrive, WhatsApp bundles them into 'android.messages'
+            android.os.Parcelable[] messagesArray = null;
+            if (extras.containsKey("android.messages")) {
+                Object rawMsgs = extras.get("android.messages");
+                if (rawMsgs instanceof android.os.Parcelable[]) {
+                    messagesArray = (android.os.Parcelable[]) rawMsgs;
+                }
+            }
 
             // Check for group message
             String groupName = null;
@@ -95,6 +100,73 @@ public class NotificationListener extends NotificationListenerService {
             if (subText != null) {
                 groupName = subText.toString();
             }
+
+            if (messagesArray != null && messagesArray.length > 0) {
+                for (android.os.Parcelable p : messagesArray) {
+                    if (p instanceof Bundle) {
+                        Bundle msgBundle = (Bundle) p;
+                        CharSequence bTextCs = msgBundle.getCharSequence("text");
+                        if (bTextCs == null) continue;
+                        String bText = bTextCs.toString();
+                        long bTime = msgBundle.getLong("time", timestamp);
+                        String sender = contact;
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && msgBundle.containsKey("sender_person")) {
+                            android.app.Person person = msgBundle.getParcelable("sender_person");
+                            if (person != null && person.getName() != null) {
+                                sender = person.getName().toString();
+                            }
+                        } else if (msgBundle.containsKey("sender")) {
+                            CharSequence sCs = msgBundle.getCharSequence("sender");
+                            if (sCs != null && sCs.length() > 0) {
+                                sender = sCs.toString();
+                            }
+                        }
+
+                        if (isDeletionNotification(bText)) {
+                            dbHelper.markLatestMessageDeleted(sender);
+                            notifyWebLayer("messageDeleted", sender);
+                            continue;
+                        }
+
+                        if (isCallNotification(null, sender, bText)) continue;
+
+                        String bType = detectMessageType(extras, bText);
+                        dbHelper.insertMessage(
+                                contact,
+                                bText,
+                                bType,
+                                bTime,
+                                "received",
+                                groupName,
+                                false,
+                                false,
+                                null,
+                                null,
+                                key + "_" + bTime
+                        );
+                    }
+                }
+                notifyWebLayer("newMessage", contact);
+                return;
+            }
+
+            // Skip summary headers if there are no sub-messages
+            if ((notification.flags & Notification.FLAG_GROUP_SUMMARY) != 0 && (text.isEmpty() || text.matches("\\d+\\s+new\\s+messages?"))) {
+                return;
+            }
+
+            // 3. DELETION EVENT DETECTION
+            // WhatsApp updates the notification to "This message was deleted" / "تم حذف هذه الرسالة"
+            if (isDeletionNotification(text)) {
+                Log.d(TAG, "⚠️ Deletion event detected from " + contact + "!");
+                dbHelper.markLatestMessageDeleted(contact);
+                notifyWebLayer("messageDeleted", contact);
+                return;
+            }
+
+            // Detect message type
+            String type = detectMessageType(extras, text);
 
             // Check for view-once
             boolean isViewOnce = isViewOnceMessage(extras, text);
@@ -142,10 +214,9 @@ public class NotificationListener extends NotificationListenerService {
                 new Thread(() -> {
                     try {
                         VoiceExtractor extractor = new VoiceExtractor(this);
-                        // Attempt immediate scan
                         String vPath = extractor.extractLatestVoiceForContact(voiceContact);
                         if (vPath == null) {
-                            Thread.sleep(1200); // Allow WhatsApp 1.2s to finish writing file
+                            Thread.sleep(1200);
                             extractor.extractLatestVoiceForContact(voiceContact);
                         }
                         notifyWebLayer("newMessage", voiceContact);
@@ -159,6 +230,32 @@ public class NotificationListener extends NotificationListenerService {
         } catch (Exception e) {
             Log.e(TAG, "Error processing notification", e);
         }
+    }
+
+    /**
+     * Identifies WhatsApp call notifications (Incoming, Missed, Ongoing, Ringing).
+     */
+    private boolean isCallNotification(Notification notification, String title, String text) {
+        if (notification != null && Notification.CATEGORY_CALL.equals(notification.category)) {
+            return true;
+        }
+        String combined = ((title != null ? title : "") + " " + (text != null ? text : "")).toLowerCase().trim();
+        return combined.contains("calling") ||
+               combined.contains("incoming voice call") ||
+               combined.contains("incoming video call") ||
+               combined.contains("missed voice call") ||
+               combined.contains("missed video call") ||
+               combined.contains("missed call") ||
+               combined.contains("ongoing call") ||
+               combined.contains("ringing") ||
+               combined.contains("مكالمة واردة") ||
+               combined.contains("مكالمة صوتية") ||
+               combined.contains("مكالمة فيديو") ||
+               combined.contains("مكالمة فائتة") ||
+               combined.contains("جاري الاتصال") ||
+               combined.contains("رنين") ||
+               combined.contains("llamada entrante") ||
+               combined.contains("appel entrant");
     }
 
     @Override

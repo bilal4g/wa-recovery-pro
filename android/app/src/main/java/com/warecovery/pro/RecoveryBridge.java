@@ -388,7 +388,11 @@ public class RecoveryBridge extends Plugin {
                 mediaPlayer = null;
             }
 
-            if (path == null || path.isEmpty()) {
+            if (path != null) {
+                path = path.replace("file://", "");
+            }
+
+            if (path == null || path.isEmpty() || !new File(path).exists()) {
                 List<File> backups = voiceExtractor.getBackedUpVoiceNotes();
                 if (!backups.isEmpty()) {
                     path = backups.get(backups.size() - 1).getAbsolutePath();
@@ -396,10 +400,11 @@ public class RecoveryBridge extends Plugin {
             }
 
             if (path == null || !new File(path).exists()) {
-                call.reject("Voice audio file not found on storage");
+                call.reject("Voice audio file not found: " + path);
                 return;
             }
 
+            Log.i(TAG, "Playing exact audio file: " + path);
             mediaPlayer = new android.media.MediaPlayer();
             mediaPlayer.setDataSource(path);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -760,7 +765,7 @@ public class RecoveryBridge extends Plugin {
     // =============================================
 
     /**
-     * Open Android Native Share Sheet (Intent.ACTION_SEND).
+     * Open Android Native Share Sheet for Text (Intent.ACTION_SEND).
      */
     @PluginMethod()
     public void shareText(PluginCall call) {
@@ -788,6 +793,53 @@ public class RecoveryBridge extends Plugin {
         } catch (Exception e) {
             Log.e(TAG, "Failed to share text", e);
             call.reject("Share failed: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Share real Media/Audio/Video/Photo file directly via Android Native Share Sheet (FileProvider).
+     */
+    @PluginMethod()
+    public void shareMedia(PluginCall call) {
+        String path = call.getString("path");
+        String mimeType = call.getString("mimeType", "audio/*");
+        String title = call.getString("title", "Share Audio");
+
+        if (path == null || path.isEmpty()) {
+            call.reject("File path cannot be empty");
+            return;
+        }
+
+        path = path.replace("file://", "");
+        File file = new File(path);
+        if (!file.exists()) {
+            call.reject("File does not exist: " + path);
+            return;
+        }
+
+        try {
+            Context ctx = getContext();
+            Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
+                    ctx,
+                    ctx.getPackageName() + ".fileprovider",
+                    file
+            );
+
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType(mimeType);
+            shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            Intent chooser = Intent.createChooser(shareIntent, title);
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(chooser);
+
+            JSObject res = new JSObject();
+            res.put("success", true);
+            call.resolve(res);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to share media file", e);
+            call.reject("Failed to share file: " + e.getMessage());
         }
     }
 

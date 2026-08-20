@@ -943,7 +943,15 @@ class WARecoveryApp {
     document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
 
     const voiceItem = document.querySelector(`[data-voice-id="${voiceId}"]`);
-    const audioSrc = voiceItem ? voiceItem.dataset.audioUrl : null;
+    let audioSrc = voiceItem ? voiceItem.dataset.audioUrl : null;
+
+    if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined') {
+      const allNotes = await db.getVoiceNotes();
+      const note = allNotes.find(v => String(v.id) === String(voiceId));
+      if (note) {
+        audioSrc = note.audioUrl || note.url || note.path;
+      }
+    }
 
     if (icon) icon.textContent = 'pause';
 
