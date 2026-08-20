@@ -8,6 +8,7 @@ import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.PixelFormat;
@@ -133,7 +134,15 @@ public class FloatingAssistantService extends Service {
         }
 
         try {
-            startForeground(NOTIF_ID, buildForegroundNotification());
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                int serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    serviceType |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+                }
+                startForeground(NOTIF_ID, buildForegroundNotification(), serviceType);
+            } else {
+                startForeground(NOTIF_ID, buildForegroundNotification());
+            }
         } catch (Exception e) {
             Log.e(TAG, "Failed to startForeground: " + e.getMessage());
         }
@@ -392,18 +401,28 @@ public class FloatingAssistantService extends Service {
 
     public void onMediaProjectionGranted(int resultCode, Intent data, String action) {
         this.projResultCode = resultCode;
-        this.projData = data;
+        this.projData = (Intent) data.clone();
 
-        MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-        if (mgr != null) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                int serviceType = ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    serviceType |= ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION | ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE;
+                }
+                startForeground(NOTIF_ID, buildForegroundNotification(), serviceType);
+            }
+        } catch (Exception ignored) {}
+
+        if (this.mediaProjection == null) {
             try {
+                MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
                 this.mediaProjection = mgr.getMediaProjection(resultCode, (Intent) data.clone());
                 
                 if (this.mediaProjection != null) {
                     this.mediaProjection.registerCallback(new MediaProjection.Callback() {
                         @Override
                         public void onStop() {
-                            Log.i(TAG, "MediaProjection stopped");
+                            Log.i(TAG, "MediaProjection stopped by system");
                             cleanupPersistentMirror();
                             mediaProjection = null;
                         }
@@ -417,7 +436,7 @@ public class FloatingAssistantService extends Service {
         }
 
         if (ScreenCaptureActivity.ACTION_VIDEO.equals(action)) {
-            startRealVideoRecording();
+            timerHandler.postDelayed(this::startRealVideoRecording, 250);
         } else {
             // First instant capture right after grant
             timerHandler.postDelayed(this::captureRealPixelScreenshot, 350);
@@ -501,7 +520,31 @@ public class FloatingAssistantService extends Service {
         }
     }
 
+    private boolean isCapturingScreenshot = false;
+
+    private boolean isBitmapValid(Bitmap bitmap) {
+        if (bitmap == null || bitmap.getWidth() < 10 || bitmap.getHeight() < 10) return false;
+        try {
+            int w = bitmap.getWidth();
+            int h = bitmap.getHeight();
+            int[] sampleX = { w / 4, w / 2, (w * 3) / 4 };
+            int[] sampleY = { h / 4, h / 2, (h * 3) / 4 };
+            for (int x : sampleX) {
+                for (int y : sampleY) {
+                    int pixel = bitmap.getPixel(x, y);
+                    if ((pixel & 0x00FFFFFF) != 0) {
+                        return true;
+                    }
+                }
+            }
+        } catch (Exception ignored) {}
+        return false;
+    }
+
     private void captureRealPixelScreenshot() {
+        if (isCapturingScreenshot) return;
+        isCapturingScreenshot = true;
+
         if (floatingView != null) floatingView.setVisibility(View.INVISIBLE);
 
         timerHandler.postDelayed(() -> {
@@ -513,27 +556,38 @@ public class FloatingAssistantService extends Service {
                     }
                 }
 
-                if (snap != null) {
+                if (snap != null && isBitmapValid(snap)) {
                     saveAndPublishScreenshot(snap);
+                    isCapturingScreenshot = false;
+                    if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
                 } else {
-                    // If mirror is fresh, wait 200ms and grab
+                    // Wait for fresh valid frame from GPU
                     timerHandler.postDelayed(() -> {
-                        synchronized (bitmapLock) {
-                            if (latestScreenBitmap != null && !latestScreenBitmap.isRecycled()) {
-                                saveAndPublishScreenshot(latestScreenBitmap.copy(latestScreenBitmap.getConfig(), false));
+                        try {
+                            Bitmap retrySnap = null;
+                            synchronized (bitmapLock) {
+                                if (latestScreenBitmap != null && !latestScreenBitmap.isRecycled()) {
+                                    retrySnap = latestScreenBitmap.copy(latestScreenBitmap.getConfig(), false);
+                                }
                             }
+                            if (retrySnap != null && isBitmapValid(retrySnap)) {
+                                saveAndPublishScreenshot(retrySnap);
+                            }
+                        } catch (Exception err) {
+                            Log.e(TAG, "Retry screenshot error", err);
+                        } finally {
+                            isCapturingScreenshot = false;
+                            if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
                         }
-                        if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
-                    }, 200);
-                    return;
+                    }, 250);
                 }
 
             } catch (Exception e) {
                 Log.e(TAG, "Failed real screenshot", e);
-            } finally {
+                isCapturingScreenshot = false;
                 if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
             }
-        }, 150);
+        }, 180);
     }
 
     private void saveAndPublishScreenshot(Bitmap bitmap) {
@@ -750,17 +804,11 @@ public class FloatingAssistantService extends Service {
             currentVideoPath = new File(dir, "wa_video_" + timestamp + ".mp4").getAbsolutePath();
 
             videoRecorder = new MediaRecorder();
-            try {
-                videoRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            } catch (Exception ignored) {}
             videoRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
             videoRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             videoRecorder.setOutputFile(currentVideoPath);
             videoRecorder.setVideoSize(w, h);
             videoRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-            try {
-                videoRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            } catch (Exception ignored) {}
             videoRecorder.setVideoEncodingBitRate(6 * 1024 * 1024);
             videoRecorder.setVideoFrameRate(30);
             videoRecorder.prepare();

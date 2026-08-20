@@ -1,12 +1,12 @@
 {
-  "version": "1.8.4",
-  "build": 25,
+  "version": "1.8.6",
+  "build": 27,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.4 — Real Voice Sync & Exact Track Hardware Playback",
+  "title": "WA Recovery Pro v1.8.6 — Pixel-Validation Screen Engine & 0 Black Captures",
   "changelog": [
-    "🎙️ Real Voice Note Sync: Fixed missing getVoiceNotes bridge method, allowing real recorded voice files to sync into the app",
-    "🎵 Exact Hardware Audio Track: Tapping any voice note plays the exact physical AAC/Opus file recorded for that specific session",
-    "🖼️ Zero Media Ghosting: Completely separated voice from photo/video gallery"
+    "🛡️ 0 Black Screenshots: Added smart pixel-validation to reject empty/black GPU initialization buffers",
+    "📸 Single-Shot Guarantee: Added capture debouncing to prevent multiple duplicate screenshot saves",
+    "🚀 0-Prompt Video Recording: Added Android 14 MediaProjection foreground service type persistence"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
