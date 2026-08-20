@@ -842,6 +842,26 @@ class WARecoveryApp {
   async openChat(contactName) {
     this.currentChat = contactName;
     const messages = await db.getMessagesByContact(contactName);
+    const voiceNotes = await db.getVoiceNotes({ contact: contactName });
+    const allMedia = await db.getMedia({ contact: contactName });
+
+    // Link any missing audio paths or photo thumbnails
+    for (const m of messages) {
+      if (m.type === 'voice' && (!m.mediaUrl || m.mediaUrl === 'null')) {
+        const matchVoice = voiceNotes.find(v => Math.abs((v.timestamp || 0) - (m.timestamp || 0)) < 60000) || voiceNotes[0];
+        if (matchVoice) {
+          m.mediaUrl = matchVoice.audioUrl || matchVoice.url || matchVoice.filePath || matchVoice.path;
+          m.filePath = m.mediaUrl;
+        }
+      }
+      if ((m.type === 'image' || m.type === 'photo' || m.isViewOnce) && (!m.mediaThumbnail && !m.mediaUrl && !m.thumbnailBase64)) {
+        const matchMedia = allMedia.find(med => Math.abs((med.timestamp || 0) - (m.timestamp || 0)) < 60000) || allMedia[0];
+        if (matchMedia) {
+          m.mediaThumbnail = matchMedia.thumbnail || matchMedia.url || matchMedia.filePath;
+          m.mediaUrl = matchMedia.url || matchMedia.filePath;
+        }
+      }
+    }
     
     const detail = document.getElementById('chat-detail');
     const nameEl = document.getElementById('chat-detail-name');
@@ -1022,7 +1042,14 @@ class WARecoveryApp {
     }
   }
 
-  async playVoice(voiceId) {
+  async transcribeVoice(voiceId) {
+    if (voiceOptionsManager) {
+      await voiceOptionsManager.openOptions(voiceId);
+      voiceOptionsManager.transcribeVoice();
+    }
+  }
+
+  async shareVoice(voiceId) {
     const playerEl = document.querySelector(`[data-voice-id="${voiceId}"] .voice-play-btn`);
     if (!playerEl) return;
 
@@ -1061,7 +1088,10 @@ class WARecoveryApp {
       let note = allNotes.find(v => String(v.id) === String(voiceId));
       if (!note) {
         const allMsgs = await db.getMessages();
-        note = allMsgs.find(m => String(m.id) === String(voiceId));
+        const msg = allMsgs.find(m => String(m.id) === String(voiceId));
+        if (msg) {
+          note = allNotes.find(v => v.contact === msg.contact) || msg;
+        }
       }
       if (note) {
         audioSrc = note.audioUrl || note.url || note.path || note.filePath || note.mediaUrl;

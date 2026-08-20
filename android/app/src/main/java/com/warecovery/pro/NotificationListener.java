@@ -2,11 +2,14 @@ package com.warecovery.pro;
 
 import android.app.Notification;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.Parcelable;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Base64;
@@ -15,6 +18,7 @@ import android.util.Log;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 
 /**
  * Android NotificationListenerService that captures WhatsApp messages in real-time.
@@ -461,7 +465,47 @@ public class NotificationListener extends NotificationListenerService {
                 }
             } catch (Exception ignored) {}
 
-            // 6. MessagingStyle messages — may contain image URIs (Android 9+)
+            // 6. Direct android.messages array check for WhatsApp photo URIs
+            if (extras.containsKey("android.messages")) {
+                Parcelable[] msgs = extras.getParcelableArray("android.messages");
+                if (msgs != null) {
+                    for (Parcelable p : msgs) {
+                        if (p instanceof Bundle) {
+                            Bundle b = (Bundle) p;
+                            Uri dataUri = b.getParcelable("uri");
+                            if (dataUri != null) {
+                                try {
+                                    InputStream is = getContentResolver().openInputStream(dataUri);
+                                    if (is != null) {
+                                        Bitmap bMap = BitmapFactory.decodeStream(is);
+                                        is.close();
+                                        if (bMap != null) {
+                                            best = pickLarger(best, bMap);
+                                        }
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 7. android.picture (Direct WhatsApp photo object)
+            if (extras.containsKey("android.picture")) {
+                Object objPic = extras.get("android.picture");
+                if (objPic instanceof Bitmap) {
+                    best = pickLarger(best, (Bitmap) objPic);
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && objPic instanceof android.graphics.drawable.Icon) {
+                    try {
+                        android.graphics.drawable.Drawable d = ((android.graphics.drawable.Icon) objPic).loadDrawable(this);
+                        if (d instanceof android.graphics.drawable.BitmapDrawable) {
+                            best = pickLarger(best, ((android.graphics.drawable.BitmapDrawable) d).getBitmap());
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+
+            // 8. MessagingStyle messages — may contain image URIs (Android 9+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                 try {
                     // Use reflection to handle API differences
@@ -474,9 +518,9 @@ public class NotificationListener extends NotificationListenerService {
                             if (msg.getDataUri() != null && msg.getDataMimeType() != null
                                     && msg.getDataMimeType().startsWith("image/")) {
                                 try {
-                                    java.io.InputStream is = getContentResolver().openInputStream(msg.getDataUri());
+                                    InputStream is = getContentResolver().openInputStream(msg.getDataUri());
                                     if (is != null) {
-                                        Bitmap msgBmp = android.graphics.BitmapFactory.decodeStream(is);
+                                        Bitmap msgBmp = BitmapFactory.decodeStream(is);
                                         is.close();
                                         if (msgBmp != null) {
                                             best = pickLarger(best, msgBmp);

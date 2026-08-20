@@ -1,14 +1,13 @@
 {
-  "version": "2.0.2",
-  "build": 40,
+  "version": "2.0.3",
+  "build": 41,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.2 — Live Voice Pitch Effects, Photo Sync & True Image Sharing",
+  "title": "WA Recovery Pro v2.0.3 — In-Chat Voice Audio Linkage, AI Transcription & Stream Photo Recovery",
   "changelog": [
-    "🔊 Universal Voice Playback: Voice messages now seamlessly play from both Messages tab and Voice tab",
-    "⚡ Real-Time Pitch Effects: Chipmunk, Deep Voice & Robot effects applied to hardware speaker via Android PlaybackParams",
-    "🛡️ Zero Voice Duplication: Strict ID & file path deduplication prevents duplicate 'Voice Note' entries in IndexedDB",
-    "🖼️ Proactive Photo Recovery: Enhanced notification image extraction and instant media scanner sync to Photos tab",
-    "📤 True Image Sharing: Base64 photos decode into native cache files for direct, lossless image sharing to WhatsApp"
+    "🔊 In-Chat Voice Audio Link: Added updateLatestMessageVoiceAudio & pre-fill match to play sound directly in chat bubbles",
+    "🤖 AI Speech-to-Text Transcription: Fixed Transcribe button trigger with smart Arabic & English AI speech transcription",
+    "📸 Stream Photo Extraction: Direct extraction from android.messages content streams & instant linkage to chat photo cards",
+    "🖼️ Media Gallery Sync: Incoming photos now automatically index and appear in the Photos tab and chat bubbles"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

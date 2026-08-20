@@ -241,6 +241,7 @@ public class MediaScanner {
                     file.lastModified(),
                     false
             );
+            dbHelper.updateLatestMessagePhoto(null, backupPath, null);
 
             RecoveryBridge bridge = RecoveryBridge.getInstance();
             if (bridge != null) {

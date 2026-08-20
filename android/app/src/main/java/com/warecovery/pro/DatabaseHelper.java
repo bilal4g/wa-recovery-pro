@@ -208,23 +208,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
     }
 
-    /**
-     * Update the latest message from contact with recovered voice audio file path.
-     */
-    public void updateLatestMessageVoiceAudio(String contact, String voicePath) {
-        if (contact == null || voicePath == null) return;
-        SQLiteDatabase db = getWritableDatabase();
-        try {
-            String sql = "UPDATE " + TABLE_MESSAGES + " SET " + COL_MEDIA_URL + " = ?, "
-                    + COL_TYPE + " = 'voice' "
-                    + " WHERE " + COL_ID + " = ("
-                    + "   SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
-                    + "   WHERE " + COL_CONTACT + " = ? "
-                    + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
-                    + ")";
-            db.execSQL(sql, new Object[]{voicePath, contact});
-        } catch (Exception ignored) {}
-    }
+
 
     public JSONArray getMessagesAsJSON(String contact, String filter) throws JSONException {
         SQLiteDatabase db = getReadableDatabase();
@@ -261,6 +245,47 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         }
         cursor.close();
         return result;
+    }
+
+    public void updateLatestMessageVoiceAudio(String contact, String voicePath) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        cv.put(COL_MEDIA_URL, voicePath);
+        
+        String where = COL_TYPE + " IN ('voice', 'audio')";
+        String[] whereArgs = null;
+        if (contact != null && !contact.isEmpty() && !contact.equals("Voice Note")) {
+            where += " AND " + COL_CONTACT + " = ?";
+            whereArgs = new String[]{contact};
+        }
+        
+        Cursor c = db.query(TABLE_MESSAGES, new String[]{COL_ID}, where, whereArgs, null, null, COL_TIMESTAMP + " DESC", "1");
+        if (c.moveToFirst()) {
+            long id = c.getLong(0);
+            db.update(TABLE_MESSAGES, cv, COL_ID + " = ?", new String[]{String.valueOf(id)});
+        }
+        c.close();
+    }
+
+    public void updateLatestMessagePhoto(String contact, String photoPath, String thumbnailBase64) {
+        SQLiteDatabase db = getWritableDatabase();
+        ContentValues cv = new ContentValues();
+        if (photoPath != null) cv.put(COL_MEDIA_URL, photoPath);
+        if (thumbnailBase64 != null) cv.put(COL_THUMBNAIL, thumbnailBase64);
+        
+        String where = COL_TYPE + " IN ('image', 'photo', 'sticker')";
+        String[] whereArgs = null;
+        if (contact != null && !contact.isEmpty() && !contact.equals("WhatsApp Media")) {
+            where += " AND " + COL_CONTACT + " = ?";
+            whereArgs = new String[]{contact};
+        }
+        
+        Cursor c = db.query(TABLE_MESSAGES, new String[]{COL_ID}, where, whereArgs, null, null, COL_TIMESTAMP + " DESC", "1");
+        if (c.moveToFirst()) {
+            long id = c.getLong(0);
+            db.update(TABLE_MESSAGES, cv, COL_ID + " = ?", new String[]{String.valueOf(id)});
+        }
+        c.close();
     }
 
     // ---- Media CRUD ----

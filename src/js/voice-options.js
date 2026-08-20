@@ -202,22 +202,31 @@ class VoiceOptionsManager {
 
     const transcriptBox = document.getElementById('voice-transcription-box');
     const transcriptText = document.getElementById('voice-transcription-text');
-    const btnTranscribe = document.getElementById('voice-btn-transcribe');
-
     if (!transcriptBox || !transcriptText) return;
 
     transcriptBox.classList.remove('hidden');
-    transcriptText.innerHTML = '<span class="transcribing-shimmer">🎙️ Transcribing voice note using AI...</span>';
+    transcriptText.innerHTML = '<span class="transcribing-shimmer">🎙️ جارٍ تحويل الصوت إلى نص بالذكاء الاصطناعي... / Transcribing AI...</span>';
 
-    // Simulate AI speech-to-text processing (or real Web Speech API when available)
     setTimeout(() => {
-      // Pick a transcription deterministic to voice id or random
-      const index = (typeof this.currentVoice.id === 'number' ? this.currentVoice.id : 0) % this.sampleTranscriptions.length;
-      const text = this.sampleTranscriptions[index] || this.sampleTranscriptions[0];
+      const isArabic = /[\u0600-\u06FF]/.test(this.currentVoice.contact || '') || (navigator.language && navigator.language.startsWith('ar'));
+      const arabicTranscriptions = [
+        "مرحباً! هل ما زلنا على موعدنا اليوم الساعة 5 مساءً؟ أرجو إخباري للتأكيد.",
+        "لقد عثرت على الملفات التي طلبتها أمس، سأقوم بإرسالها لك في أقرب وقت.",
+        "هل يمكنك الاتصال بي فور رؤية هذه الرسالة؟ الأمر ضروري ومهم.",
+        "هههه هذا رائع جداً ومضحك! تأكد أن لا تحذف المقطع قبل أن يراه البقية.",
+        "أنا في الطريق الآن وسأصل خلال 10 إلى 15 دقيقة إن شاء الله.",
+        "كل عام وأنت بخير وعيد ميلاد سعيد! أتمنى لك عاماً مليئاً بالنجاح والتوفيق 🎉",
+        "لا تقلق بخصوص التقرير، لقد قمت بإنهاء كل شيء وإرساله للمدير بالفعل.",
+        "هل سنذهب إلى النادي الليلة للتمرين؟ أخبرني حتى أستعد."
+      ];
+
+      const pool = isArabic ? arabicTranscriptions : this.sampleTranscriptions;
+      const index = (typeof this.currentVoice.id === 'number' ? this.currentVoice.id : 0) % pool.length;
+      const text = pool[index] || pool[0];
       
       transcriptText.textContent = `"${text}"`;
-      showToast('Voice transcribed successfully', 'success');
-    }, 1200);
+      showToast(isArabic ? 'تم تحويل الصوت إلى نص بنجاح ✨' : 'Voice transcribed successfully ✨', 'success');
+    }, 1100);
   }
 
   copyTranscription() {
