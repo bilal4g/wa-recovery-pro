@@ -706,6 +706,42 @@ public class RecoveryBridge extends Plugin {
     }
 
     // =============================================
+    // NATIVE SYSTEM SHARING
+    // =============================================
+
+    /**
+     * Open Android Native Share Sheet (Intent.ACTION_SEND).
+     */
+    @PluginMethod()
+    public void shareText(PluginCall call) {
+        String text = call.getString("text", "");
+        String title = call.getString("title", "Share via");
+
+        if (text == null || text.trim().isEmpty()) {
+            call.reject("Text cannot be empty");
+            return;
+        }
+
+        try {
+            Intent sendIntent = new Intent();
+            sendIntent.setAction(Intent.ACTION_SEND);
+            sendIntent.putExtra(Intent.EXTRA_TEXT, text);
+            sendIntent.setType("text/plain");
+
+            Intent shareIntent = Intent.createChooser(sendIntent, title);
+            shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(shareIntent);
+
+            JSObject res = new JSObject();
+            res.put("success", true);
+            call.resolve(res);
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to share text", e);
+            call.reject("Share failed: " + e.getMessage());
+        }
+    }
+
+    // =============================================
     // NATIVE EVENT CALLBACKS
     // =============================================
 

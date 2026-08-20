@@ -345,6 +345,16 @@ class ExportManager {
       });
     }
 
+    // Try Native Android Share Sheet first
+    const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
+    if (bridge) {
+      try {
+        await bridge.shareText({ text: summaryText, title: `Chat Report - ${contact}` });
+        this.closeExportModal();
+        return;
+      } catch (ignored) {}
+    }
+
     try {
       if (navigator.share) {
         await navigator.share({
@@ -367,7 +377,7 @@ class ExportManager {
 
   /**
    * 5. Smart Single Item Sharing
-   * - If Text: Shares message text directly via Web Share API
+   * - If Text: Shares message text directly via Native Android Share Sheet / Web Share API
    * - If Voice: Opens voice audio options & audio file sharing
    * - If Photo: Opens photo viewer / direct image share
    */
@@ -402,18 +412,28 @@ class ExportManager {
       return;
     }
 
-    const shareData = {
-      title: `Message from ${msg.contact}`,
-      text: `${msg.text}\n\n(Recovered from ${msg.contact} via WA Recovery Pro)`
-    };
+    const shareBody = `${msg.text}\n\n(Recovered from ${msg.contact} via WA Recovery Pro)`;
 
+    // 1. Try Native Android Share Sheet (Intent.ACTION_SEND)
+    const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
+    if (bridge) {
+      try {
+        await bridge.shareText({ text: shareBody, title: `Message from ${msg.contact}` });
+        return;
+      } catch (ignored) {}
+    }
+
+    // 2. Web Share API Fallback
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: `Message from ${msg.contact}`,
+          text: shareBody
+        });
         showToast('Shared message', 'success');
       } else {
         await navigator.clipboard.writeText(msg.text);
-        showToast('Message copied to clipboard', 'success');
+        showToast('Message copied to clipboard', 'info');
       }
     } catch (e) {
       if (e.name !== 'AbortError') {

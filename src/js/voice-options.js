@@ -191,19 +191,25 @@ class VoiceOptionsManager {
   async shareSystem() {
     if (!this.currentVoice) return;
 
-    const shareData = {
-      title: `Voice note from ${this.currentVoice.contact}`,
-      text: `Voice note recovered with WA Recovery Pro (Duration: ${formatDuration(this.currentVoice.duration || 10)})`,
-      url: window.location.href
-    };
+    const shareText = `🎙️ [Recovered Voice Note]\nSender: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`;
+
+    const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
+    if (bridge) {
+      try {
+        await bridge.shareText({ text: shareText, title: `Voice note from ${this.currentVoice.contact}` });
+        return;
+      } catch (ignored) {}
+    }
 
     try {
       if (navigator.share) {
-        await navigator.share(shareData);
+        await navigator.share({
+          title: `Voice note from ${this.currentVoice.contact}`,
+          text: shareText
+        });
         showToast('Shared successfully', 'success');
       } else {
-        // Fallback: Copy link or show options
-        navigator.clipboard.writeText(shareData.text);
+        await navigator.clipboard.writeText(shareText);
         showToast('Voice note details copied to clipboard', 'info');
       }
     } catch (err) {
