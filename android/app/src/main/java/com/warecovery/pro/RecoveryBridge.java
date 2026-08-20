@@ -5,6 +5,10 @@ import android.content.Intent;
 import android.provider.Settings;
 import android.util.Log;
 
+import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
+import androidx.core.content.FileProvider;
+
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -389,7 +393,15 @@ public class RecoveryBridge extends Plugin {
 
             mediaPlayer = new android.media.MediaPlayer();
             mediaPlayer.setDataSource(path);
-            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+                android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .build();
+                mediaPlayer.setAudioAttributes(attrs);
+            } else {
+                mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
+            }
             mediaPlayer.prepare();
 
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M && speed != null && speed > 0) {

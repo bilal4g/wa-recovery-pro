@@ -171,10 +171,12 @@ class WARecoveryApp {
 
   async _checkFirstLaunch() {
     const isGranted = await this._checkPermissionsStatus();
-    // If Notification Access is NOT granted on the system, always show the setup wizard
-    if (!isGranted) {
+    const completed = localStorage.getItem('wa_onboarding_completed');
+    
+    // Only show onboarding wizard on initial install if user has not completed or closed it yet
+    if (!isGranted && completed !== 'true') {
       this.showOnboarding();
-    } else {
+    } else if (isGranted) {
       const banner = document.getElementById('perm-warning-banner');
       if (banner) banner.classList.add('hidden');
     }
@@ -243,6 +245,7 @@ class WARecoveryApp {
     }
     if (btnClose) {
       btnClose.addEventListener('click', () => {
+        localStorage.setItem('wa_onboarding_completed', 'true');
         this.hideOnboarding();
       });
     }
@@ -253,15 +256,14 @@ class WARecoveryApp {
     }
     if (btnDone) {
       btnDone.addEventListener('click', async () => {
-        const notifGranted = await this._checkPermissionsStatus();
-        if (!notifGranted && this.isNative) {
-          showToast('Please enable Notification Access in settings first!', 'error', 3000);
-          this.openNotificationSettings();
-          return;
-        }
         localStorage.setItem('wa_onboarding_completed', 'true');
         this.hideOnboarding();
-        showToast('Recovery Service active! Waiting for messages...', 'success');
+        const notifGranted = await this._checkPermissionsStatus();
+        if (!notifGranted) {
+          showToast('⚠️ Tip: Grant Notification Access to start recovering messages.', 'info', 4000);
+        } else {
+          showToast('✅ Recovery Service active!', 'success', 3000);
+        }
         this.loadDashboard();
       });
     }
