@@ -1,13 +1,12 @@
 {
-  "version": "1.9.2",
-  "build": 30,
+  "version": "1.9.3",
+  "build": 31,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.9.2 — Real Dynamic Voice Duration & High-Fidelity Recording",
+  "title": "WA Recovery Pro v1.9.3 — Main Loudspeaker Audio Routing & Auto-Stop Waveform",
   "changelog": [
-    "⏱️ Exact Real Duration: Removed hardcoded 12s/14s fallback, cards now display the exact recorded seconds (e.g. 0:03, 0:45)",
-    "🎙️ Crisp Speaker Audio: Upgraded to VOICE_RECOGNITION 192kbps AAC for crystal clear speaker capture",
-    "🔊 Full Hardware Audio Volume: 100% volume stream with instant track resolution",
-    "⚡ 0-Prompt Hardware Screenshots: 15ms GPU hardware frame grab without popups"
+    "🔊 Loudspeaker Routing (مكبر الصوت): Explicitly routed voice playback to STREAM_MUSIC main external speaker",
+    "⏹️ Auto-Stop on Completion (إيقاف تلقائي): Waveform animation and pause button cleanly stop immediately when audio ends",
+    "⏱️ Exact Real Duration: Dynamically calculates and displays the exact physical recording time"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

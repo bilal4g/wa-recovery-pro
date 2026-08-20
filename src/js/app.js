@@ -96,6 +96,26 @@ class WARecoveryApp {
       }
     });
 
+    if (this.bridge) {
+      try {
+        this.bridge.addListener('onVoicePlayState', (data) => {
+          if (data && data.status === 'completed') {
+            const vid = data.voiceId;
+            if (vid && this.audioPlayers[vid]) {
+              this.audioPlayers[vid].pause();
+            } else {
+              Object.keys(this.audioPlayers).forEach(k => {
+                if (this.audioPlayers[k]?.pause) this.audioPlayers[k].pause();
+                delete this.audioPlayers[k];
+              });
+              document.querySelectorAll('.voice-play-btn .material-icons-round').forEach(i => i.textContent = 'play_arrow');
+              document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
+            }
+          }
+        });
+      } catch (e) {}
+    }
+
     window.WAApp = this;
     console.log('🛡️ WA Recovery Pro active (Native Mode:', this.isNative, ')');
   }
@@ -1059,10 +1079,23 @@ class WARecoveryApp {
     if (this.bridge && window.Capacitor?.isNativePlatform()) {
       try {
         const numId = parseInt(voiceId);
-        await this.bridge.playVoiceNote({ path: audioSrc, id: isNaN(numId) ? null : numId, speed: speed });
+        const playResult = await this.bridge.playVoiceNote({ path: audioSrc, id: isNaN(numId) ? null : numId, speed: speed });
+        
+        let trackDurationMs = (playResult && playResult.duration) ? playResult.duration : 0;
+        let autoStopTimeout = null;
+        if (trackDurationMs > 0) {
+          autoStopTimeout = setTimeout(() => {
+            clearInterval(animInterval);
+            if (icon) icon.textContent = 'play_arrow';
+            bars.forEach(b => b.classList.remove('active'));
+            delete this.audioPlayers[voiceId];
+          }, Math.round(trackDurationMs / speed) + 150);
+        }
+
         this.audioPlayers[voiceId] = {
           pause: async () => {
             clearInterval(animInterval);
+            if (autoStopTimeout) clearTimeout(autoStopTimeout);
             if (icon) icon.textContent = 'play_arrow';
             bars.forEach(b => b.classList.remove('active'));
             try { await this.bridge.stopVoiceNote(); } catch (e) {}

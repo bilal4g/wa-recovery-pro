@@ -458,13 +458,22 @@ public class RecoveryBridge extends Plugin {
                 return;
             }
 
-            Log.i(TAG, "Playing exact audio file: " + path);
+            Log.i(TAG, "Playing exact audio file to speaker: " + path);
+
+            android.media.AudioManager audioManager = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
+            if (audioManager != null) {
+                audioManager.setMode(android.media.AudioManager.MODE_NORMAL);
+                audioManager.setSpeakerphoneOn(true);
+            }
+
             mediaPlayer = new android.media.MediaPlayer();
             mediaPlayer.setDataSource(path);
+            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
-                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SPEECH)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
                         .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                        .setLegacyStreamType(android.media.AudioManager.STREAM_MUSIC)
                         .build();
                 mediaPlayer.setAudioAttributes(attrs);
             }
@@ -477,9 +486,17 @@ public class RecoveryBridge extends Plugin {
                 mediaPlayer.setPlaybackParams(params);
             }
 
+            int trackDurationMs = mediaPlayer.getDuration();
+
             mediaPlayer.setOnCompletionListener(mp -> {
+                try {
+                    mp.stop();
+                    mp.release();
+                    mediaPlayer = null;
+                } catch (Exception ignored) {}
                 JSObject ret = new JSObject();
                 ret.put("status", "completed");
+                ret.put("voiceId", id != null ? id.toString() : "");
                 notifyListeners("onVoicePlayState", ret);
             });
 
@@ -487,7 +504,7 @@ public class RecoveryBridge extends Plugin {
 
             JSObject result = new JSObject();
             result.put("status", "playing");
-            result.put("duration", mediaPlayer.getDuration());
+            result.put("duration", trackDurationMs);
             call.resolve(result);
 
         } catch (Exception e) {
