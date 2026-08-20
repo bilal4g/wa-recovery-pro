@@ -111,7 +111,8 @@ export function renderChatItem(contact) {
   const time = formatTime(contact.lastActive);
 
   return `
-    <div class="chat-item" data-contact="${escapeHtml(contact.name)}">
+    <div class="chat-item selectable-item" data-contact="${escapeHtml(contact.name)}" data-id="${escapeHtml(contact.name)}">
+      <div class="item-select-checkbox"><span class="material-icons-round">check</span></div>
       <div class="chat-avatar ${contact.hasDeleted ? 'has-deleted' : ''}" style="background:${color}">${initials}</div>
       <div class="chat-info">
         <div class="chat-name">${escapeHtml(contact.name)}</div>
@@ -177,30 +178,23 @@ export function renderMessageBubble(message) {
     content += renderInlineVoicePlayer(message);
   }
 
-  let actions = '';
-  if (message.type === 'text' || (message.text && message.type !== 'voice' && message.type !== 'image')) {
-    actions = `
-      <div class="bubble-actions">
-        <button class="bubble-action-btn" onclick="window.WAApp?.copyMessage('${message.id}')" title="Copy text">
-          <span class="material-icons-round">content_copy</span> Copy
-        </button>
-        <button class="bubble-action-btn" onclick="window.WAApp?.shareMessage('${message.id}')" title="Share text">
-          <span class="material-icons-round">share</span> Share
-        </button>
-      </div>
-    `;
-  } else if (message.type === 'image' || message.isViewOnce) {
-    actions = `
-      <div class="bubble-actions">
-        <button class="bubble-action-btn" onclick="window.WAApp?.shareMessage('${message.id}')" title="Share Photo">
-          <span class="material-icons-round">share</span> Share Photo
-        </button>
-      </div>
-    `;
-  }
+  let actions = `
+    <div class="bubble-actions">
+      <button class="bubble-action-btn" onclick="window.WAApp?.copyMessage('${message.id}')" title="Copy">
+        <span class="material-icons-round">content_copy</span> Copy
+      </button>
+      <button class="bubble-action-btn" onclick="window.WAApp?.shareMessage('${message.id}')" title="Share">
+        <span class="material-icons-round">share</span> Share
+      </button>
+      <button class="bubble-action-btn action-delete" onclick="window.WAApp?.deleteMessageItem('${message.id}')" title="Delete">
+        <span class="material-icons-round">delete</span>
+      </button>
+    </div>
+  `;
 
   return `
-    <div class="${cssClass}" data-id="${message.id}">
+    <div class="${cssClass} selectable-item" data-id="${message.id}">
+      <div class="item-select-checkbox"><span class="material-icons-round">check</span></div>
       ${content}
       <div class="bubble-footer">
         ${actions}
@@ -218,20 +212,17 @@ function renderInlineVoicePlayer(message) {
   
   return `
     <div class="voice-player" data-voice-id="${message.id}">
-      <button class="voice-play-btn" onclick="window.WAApp?.playVoice('${message.id}')" aria-label="Play Voice">
+      <button class="voice-play-btn" onclick="window.WAApp?.playVoice('${message.id}')" aria-label="Play">
         <span class="material-icons-round">play_arrow</span>
       </button>
       <div class="voice-waveform">${bars}</div>
       <span class="voice-time">${formatDuration(duration)}</span>
-      <button class="voice-speed-pill" onclick="window.WAApp?.toggleVoiceSpeed('${message.id}', this)" title="Change Speed">1x</button>
-      <button class="voice-inline-btn" onclick="window.WAApp?.openVoiceOptions('${message.id}')" title="Voice Options & Sharing">
-        <span class="material-icons-round">more_vert</span>
-      </button>
+      <button class="voice-speed-pill" onclick="window.WAApp?.toggleVoiceSpeed('${message.id}', this)" title="Speed">1x</button>
     </div>
   `;
 }
 
-// ---- Voice Note Item (for voice tab) ----
+// ---- Voice Note Card (for voice tab) ----
 
 export function renderVoiceItem(voice) {
   const initials = getInitials(voice.contact);
@@ -243,7 +234,8 @@ export function renderVoiceItem(voice) {
   const audioPath = voice.audioUrl || voice.url || voice.path || '';
 
   return `
-    <div class="voice-item" data-voice-id="${voice.id}" data-audio-url="${escapeHtml(audioPath)}">
+    <div class="voice-item selectable-item" data-voice-id="${voice.id}" data-id="${voice.id}" data-audio-url="${escapeHtml(audioPath)}">
+      <div class="item-select-checkbox"><span class="material-icons-round">check</span></div>
       <div class="voice-item-header">
         <div class="voice-avatar" style="background:${color}">${initials}</div>
         <div class="voice-info">
@@ -275,8 +267,11 @@ export function renderVoiceItem(voice) {
         <button class="voice-chip-btn" onclick="window.WAApp?.shareVoice('${voice.id}')">
           <span class="material-icons-round">share</span> Share
         </button>
+        <button class="voice-chip-btn action-delete" onclick="window.WAApp?.deleteVoiceItem('${voice.id}')" title="Delete">
+          <span class="material-icons-round">delete</span> Delete
+        </button>
         <button class="voice-chip-btn" onclick="window.WAApp?.openVoiceOptions('${voice.id}')">
-          <span class="material-icons-round">tune</span> Effects & Export
+          <span class="material-icons-round">tune</span> Effects
         </button>
       </div>
     </div>
@@ -304,7 +299,8 @@ export function renderMediaItem(media) {
 
   if (isDoc) {
     return `
-      <div class="media-item" data-media-id="${media.id}" style="display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);">
+      <div class="media-item selectable-item" data-media-id="${media.id}" data-id="${media.id}" style="display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);">
+        <div class="item-select-checkbox"><span class="material-icons-round">check</span></div>
         <div style="text-align:center;padding:8px;">
           <span class="material-icons-round" style="font-size:28px;color:var(--accent-blue);">description</span>
           <div style="font-size:10px;color:var(--text-muted);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(media.filename || 'Document')}</div>
@@ -315,7 +311,8 @@ export function renderMediaItem(media) {
   }
 
   return `
-    <div class="media-item" data-media-id="${media.id}">
+    <div class="media-item selectable-item" data-media-id="${media.id}" data-id="${media.id}">
+      <div class="item-select-checkbox"><span class="material-icons-round">check</span></div>
       <img src="${media.thumbnail || media.url}" alt="" loading="lazy">
       ${isVideo ? '<div class="video-indicator"><span class="material-icons-round">play_arrow</span></div>' : ''}
       ${media.isDeleted ? '<div class="deleted-badge"><span class="material-icons-round">delete</span></div>' : ''}

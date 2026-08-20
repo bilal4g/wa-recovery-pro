@@ -370,6 +370,62 @@ class RecoveryDatabase {
     });
   }
 
+  async deleteMessage(id) {
+    await this._ready;
+    return this._delete('messages', id);
+  }
+
+  async deleteMessages(ids) {
+    await this._ready;
+    for (const id of ids) {
+      await this._delete('messages', typeof id === 'number' ? id : parseInt(id));
+    }
+  }
+
+  async deleteChatHistory(contact) {
+    await this._ready;
+    const messages = await this._getAll('messages');
+    for (const m of messages) {
+      if (m.contact === contact && m.id) {
+        await this._delete('messages', m.id);
+      }
+    }
+  }
+
+  async deleteMedia(id) {
+    await this._ready;
+    return this._delete('media', id);
+  }
+
+  async deleteMediaBatch(ids) {
+    await this._ready;
+    for (const id of ids) {
+      await this._delete('media', typeof id === 'number' ? id : parseInt(id));
+    }
+  }
+
+  async deleteVoiceNote(id) {
+    await this._ready;
+    return this._delete('voiceNotes', id);
+  }
+
+  async deleteVoiceNotesBatch(ids) {
+    await this._ready;
+    for (const id of ids) {
+      await this._delete('voiceNotes', typeof id === 'number' ? id : parseInt(id));
+    }
+  }
+
+  _delete(storeName, key) {
+    return new Promise((resolve, reject) => {
+      const tx = this.db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const request = store.delete(key);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   _clear(storeName) {
     return new Promise((resolve, reject) => {
       const tx = this.db.transaction(storeName, 'readwrite');

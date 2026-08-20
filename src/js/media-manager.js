@@ -16,6 +16,8 @@ class MediaManager {
   _initLightbox() {
     const closeBtn = document.getElementById('lightbox-close');
     const downloadBtn = document.getElementById('lightbox-download');
+    const shareBtn = document.getElementById('lightbox-share');
+    const deleteBtn = document.getElementById('lightbox-delete');
 
     if (closeBtn) {
       closeBtn.addEventListener('click', () => this.closeLightbox());
@@ -23,11 +25,68 @@ class MediaManager {
     if (downloadBtn) {
       downloadBtn.addEventListener('click', () => this.downloadCurrentMedia());
     }
+    if (shareBtn) {
+      shareBtn.addEventListener('click', () => this.shareCurrentMedia());
+    }
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => this.deleteCurrentMedia());
+    }
 
     // Close on escape key
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') this.closeLightbox();
     });
+  }
+
+  async shareCurrentMedia() {
+    if (!this._currentMedia) return;
+    const media = this._currentMedia;
+    const path = media.url || media.filePath || media.thumbnail;
+    
+    try {
+      if (window.Capacitor?.isNativePlatform()) {
+        const { Plugins } = window.Capacitor;
+        if (Plugins?.RecoveryBridge) {
+          await Plugins.RecoveryBridge.shareMedia({
+            path: path,
+            mimeType: media.mimeType || (media.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+            title: 'Share Media'
+          });
+          return;
+        }
+      }
+
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Recovered Media',
+          text: `Recovered media from ${media.contact}`,
+          url: path.startsWith('http') ? path : undefined
+        });
+      } else {
+        showToast('Sharing not supported on this browser', 'info');
+      }
+    } catch (err) {
+      console.log('Share error:', err);
+    }
+  }
+
+  async deleteCurrentMedia() {
+    if (!this._currentMedia) return;
+    const id = this._currentMedia.id;
+    const { showModal } = await import('./ui-components.js');
+
+    showModal(
+      'Delete Media Item',
+      'Are you sure you want to permanently delete this recovered item?',
+      async () => {
+        await db.deleteMedia(id);
+        this.closeLightbox();
+        showToast('Media item deleted', 'success');
+        if (window.WAApp?.loadMediaGrid) {
+          window.WAApp.loadMediaGrid();
+        }
+      }
+    );
   }
 
   async loadMedia(filter = 'photos') {

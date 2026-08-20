@@ -1,13 +1,14 @@
 {
-  "version": "1.7.5",
-  "build": 20,
+  "version": "1.8.0",
+  "build": 21,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.7.5 — Strict Real-Time Guard & Clean Slate",
+  "title": "WA Recovery Pro v1.8.0 — Multi-Select, Batch Delete & Multi-Item Sharing",
   "changelog": [
-    "🛡️ Strict Real-Time Cutoff: Both MediaScanner and VoiceExtractor now enforce strict timestamp barriers (rejects ANY file created prior to service start)",
-    "🚫 Completely eliminated scanVoiceNotes and legacy bulk scanners",
-    "🖼️ Real-Time Photo & View-Once Interception with instant Media Gallery pairing",
-    "🗑️ Full SQLite & IndexedDB 1-Tap Reset in Settings"
+    "☑️ Multi-Select Action Bar: Long-press or tap select icon to select multiple chats, messages, media, or voice notes",
+    "🗑️ Batch & 1-Tap Deletion: Delete individual messages, whole conversations, or batch selected media with confirmation",
+    "📤 Multi-Item & Native Sharing: Share selected messages, photos, videos, or voice notes directly to WhatsApp",
+    "📸 Real MediaProjection Engine: Pixel-perfect screen capture & full MP4 video recording",
+    "🛡️ Strict Real-Time Guard: 100% blocks old device media from importing"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

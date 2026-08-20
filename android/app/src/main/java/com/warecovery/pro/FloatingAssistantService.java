@@ -6,20 +6,26 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
 import android.graphics.PixelFormat;
 import android.graphics.drawable.GradientDrawable;
+import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
+import android.media.Image;
+import android.media.ImageReader;
 import android.media.MediaRecorder;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.util.Base64;
+import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.MotionEvent;
@@ -33,12 +39,18 @@ import android.widget.Toast;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
 
 /**
  * Floating Capture Assistant Overlay Service.
- * Draws a floating bubble over other apps (WhatsApp) allowing users to
- * record audio in real-time while playing View-Once voice notes or videos.
+ * Draws a floating bubble over other apps (WhatsApp) allowing users to:
+ * 1. Record real audio while playing View-Once voice notes or videos (AAC 44.1kHz).
+ * 2. Take REAL device pixel screenshots using Android MediaProjection.
+ * 3. Record REAL full-screen MP4 videos using Android MediaProjection.
  */
 @SuppressWarnings("deprecation")
 public class FloatingAssistantService extends Service {
@@ -47,6 +59,7 @@ public class FloatingAssistantService extends Service {
     private static final String CHANNEL_ID = "wa_floating_assistant_channel";
     private static final int NOTIF_ID = 2001;
 
+    private static FloatingAssistantService instance;
     public static boolean isRunning = false;
     public static final String ACTION_START = "START_FLOATING_ASSISTANT";
     public static final String ACTION_STOP = "STOP_FLOATING_ASSISTANT";
@@ -64,17 +77,34 @@ public class FloatingAssistantService extends Service {
 
     // Audio Recording State
     private boolean isRecording = false;
-    private MediaRecorder mediaRecorder;
+    private MediaRecorder audioRecorder;
     private String currentAudioPath;
     private long recordStartTime = 0;
     private Handler timerHandler;
     private Runnable timerRunnable;
 
+    // Video Recording & Screen Capture State
+    private boolean isRecordingVideo = false;
+    private MediaRecorder videoRecorder;
+    private VirtualDisplay videoVirtualDisplay;
+    private long videoStartTime = 0;
+    private String currentVideoPath;
+
+    // MediaProjection
+    private MediaProjection mediaProjection;
+    private int projResultCode;
+    private Intent projData;
+
     private DatabaseHelper dbHelper;
+
+    public static FloatingAssistantService getInstance() {
+        return instance;
+    }
 
     @Override
     public void onCreate() {
         super.onCreate();
+        instance = this;
         isRunning = true;
         dbHelper = DatabaseHelper.getInstance(this);
         timerHandler = new Handler(Looper.getMainLooper());
@@ -98,8 +128,8 @@ public class FloatingAssistantService extends Service {
             showFloatingBubble();
         } catch (Exception e) {
             Log.e(TAG, "Failed to show floating bubble: " + e.getMessage());
-            stopSelf();
         }
+
         return START_STICKY;
     }
 
@@ -108,221 +138,109 @@ public class FloatingAssistantService extends Service {
         return null;
     }
 
-    private void createNotificationChannel() {
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                NotificationChannel channel = new NotificationChannel(
-                        CHANNEL_ID,
-                        "Floating Capture Assistant",
-                        NotificationManager.IMPORTANCE_LOW
-                );
-                channel.setDescription("Floating bubble to capture View-Once voice notes & media");
-                NotificationManager manager = getSystemService(NotificationManager.class);
-                if (manager != null) {
-                    manager.createNotificationChannel(channel);
-                }
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Error creating notification channel", e);
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        isRunning = false;
+        instance = null;
+
+        if (isRecording) {
+            stopAudioRecording();
+        }
+        if (isRecordingVideo) {
+            stopVideoRecording();
+        }
+        if (mediaProjection != null) {
+            try { mediaProjection.stop(); } catch (Exception ignored) {}
+            mediaProjection = null;
+        }
+
+        if (floatingView != null && windowManager != null) {
+            try {
+                windowManager.removeView(floatingView);
+            } catch (Exception ignored) {}
+            floatingView = null;
+        }
+
+        // Notify Web Layer that assistant stopped
+        RecoveryBridge bridge = RecoveryBridge.getInstance();
+        if (bridge != null) {
+            bridge.onNativeEvent("assistantStateChanged", "stopped");
         }
     }
 
-    private Notification buildForegroundNotification() {
-        try {
-            Intent notificationIntent = new Intent(this, MainActivity.class);
-            PendingIntent pendingIntent = PendingIntent.getActivity(
-                    this, 0, notificationIntent,
-                    PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT
-            );
+    // =============================================
+    // FLOATING OVERLAY UI
+    // =============================================
 
-            Notification.Builder builder;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                builder = new Notification.Builder(this, CHANNEL_ID);
-            } else {
-                builder = new Notification.Builder(this);
-            }
-
-            return builder
-                    .setContentTitle("WA Recovery Pro — Floating Assistant")
-                    .setContentText("Floating capture bubble is active over WhatsApp")
-                    .setSmallIcon(android.R.drawable.ic_btn_speak_now)
-                    .setContentIntent(pendingIntent)
-                    .setOngoing(true)
-                    .build();
-        } catch (Exception e) {
-            Log.e(TAG, "Error building notification", e);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                return new Notification.Builder(this, CHANNEL_ID).build();
-            }
-            return new Notification();
-        }
-    }
-
-    @SuppressLint({"ClickableViewAccessibility", "SetTextI18n"})
+    @SuppressLint("ClickableViewAccessibility")
     private void showFloatingBubble() {
         if (floatingView != null) return;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !android.provider.Settings.canDrawOverlays(this)) {
-            Log.w(TAG, "Overlay permission not granted, stopping service");
-            stopSelf();
-            return;
+        windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
+
+        int layoutType;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            layoutType = WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
+        } else {
+            layoutType = WindowManager.LayoutParams.TYPE_PHONE;
         }
 
-        try {
-            windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
-            int layoutType = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
-                    ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
-                    : WindowManager.LayoutParams.TYPE_PHONE;
+        params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                layoutType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
+                        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS |
+                        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT
+        );
 
-            params = new WindowManager.LayoutParams(
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    WindowManager.LayoutParams.WRAP_CONTENT,
-                    layoutType,
-                    WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-                    PixelFormat.TRANSLUCENT
-            );
+        params.gravity = Gravity.TOP | Gravity.START;
+        params.x = 40;
+        params.y = 250;
 
-            params.gravity = Gravity.TOP | Gravity.START;
-            params.x = 40;
-            params.y = 300;
-
-            // Build UI programmatically
-            floatingView = buildOverlayLayout();
-            windowManager.addView(floatingView, params);
-            Log.i(TAG, "Floating bubble added to WindowManager");
-        } catch (Exception e) {
-            Log.e(TAG, "Error adding floating bubble to WindowManager", e);
-            stopSelf();
-        }
+        floatingView = buildOverlayView();
+        windowManager.addView(floatingView, params);
     }
 
-    @SuppressLint({"ClickableViewAccessibility", "SetTextI18n"})
-    private View buildOverlayLayout() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setGravity(Gravity.START);
+    private View buildOverlayView() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setGravity(Gravity.CENTER_HORIZONTAL);
 
-        // 1. Floating Bubble Pill
+        // 1. Floating Capsule Bubble
         bubbleRoot = new LinearLayout(this);
         bubbleRoot.setOrientation(LinearLayout.HORIZONTAL);
         bubbleRoot.setGravity(Gravity.CENTER_VERTICAL);
-        bubbleRoot.setPadding(24, 16, 24, 16);
+        bubbleRoot.setPadding(28, 20, 28, 20);
 
-        GradientDrawable bubbleBg = new GradientDrawable();
-        bubbleBg.setColor(Color.parseColor("#1B2A38"));
-        bubbleBg.setCornerRadius(60f);
-        bubbleBg.setStroke(3, Color.parseColor("#00A884"));
-        bubbleRoot.setBackground(bubbleBg);
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#111B21"));
+        bg.setCornerRadius(60f);
+        bg.setStroke(3, Color.parseColor("#00A884"));
+        bubbleRoot.setBackground(bg);
         bubbleRoot.setElevation(16f);
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(android.R.drawable.ic_btn_speak_now);
         icon.setColorFilter(Color.parseColor("#00A884"));
         LinearLayout.LayoutParams iconParams = new LinearLayout.LayoutParams(48, 48);
-        iconParams.setMarginEnd(12);
+        iconParams.setMarginEnd(16);
         bubbleRoot.addView(icon, iconParams);
 
         bubbleText = new TextView(this);
-        bubbleText.setText("WA Capture");
+        bubbleText.setText("WA Assistant");
         bubbleText.setTextColor(Color.WHITE);
-        bubbleText.setTextSize(13f);
-        bubbleText.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+        bubbleText.setTextSize(13.5f);
+        bubbleText.setTypeface(null, android.graphics.Typeface.BOLD);
         bubbleRoot.addView(bubbleText);
 
-        // 2. Expanded Menu Card (Hidden by default)
-        menuCard = new LinearLayout(this);
-        menuCard.setOrientation(LinearLayout.VERTICAL);
-        menuCard.setPadding(24, 20, 24, 20);
+        // 2. Expandable Action Card
+        menuCard = buildMenuCard();
         menuCard.setVisibility(View.GONE);
 
-        GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setColor(Color.parseColor("#111B21"));
-        cardBg.setCornerRadius(24f);
-        cardBg.setStroke(2, Color.parseColor("#2A3942"));
-        menuCard.setBackground(cardBg);
-        menuCard.setElevation(20f);
-
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
-                dpToPx(240), LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        cardParams.setMargins(0, 12, 0, 0);
-
-        TextView menuTitle = new TextView(this);
-        menuTitle.setText("🛡️ View-Once Spy Assistant");
-        menuTitle.setTextColor(Color.WHITE);
-        menuTitle.setTextSize(14f);
-        menuTitle.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        menuCard.addView(menuTitle);
-
-        TextView menuDesc = new TextView(this);
-        menuDesc.setText("Select what you want to capture:");
-        menuDesc.setTextColor(Color.parseColor("#8696A0"));
-        menuDesc.setTextSize(11f);
-        menuDesc.setPadding(0, 4, 0, 12);
-        menuCard.addView(menuDesc);
-
-        // Action Button 1: Record Voice Audio Only
-        btnRecordAudio = new Button(this);
-        btnRecordAudio.setText("🎙️ Record Voice (Audio Only)");
-        btnRecordAudio.setTextColor(Color.WHITE);
-        btnRecordAudio.setTextSize(12f);
-        GradientDrawable btnBg = new GradientDrawable();
-        btnBg.setColor(Color.parseColor("#EF4444"));
-        btnBg.setCornerRadius(16f);
-        btnRecordAudio.setBackground(btnBg);
-        btnRecordAudio.setPadding(16, 12, 16, 12);
-        btnRecordAudio.setOnClickListener(v -> toggleRecording());
-        menuCard.addView(btnRecordAudio);
-
-        // Action Button 2: 1-Tap Screenshot Capture
-        Button btnScreenshot = new Button(this);
-        btnScreenshot.setText("📸 Take 1-Tap Screenshot");
-        btnScreenshot.setTextColor(Color.WHITE);
-        btnScreenshot.setTextSize(12f);
-        GradientDrawable shotBg = new GradientDrawable();
-        shotBg.setColor(Color.parseColor("#2563EB"));
-        shotBg.setCornerRadius(16f);
-        btnScreenshot.setBackground(shotBg);
-        btnScreenshot.setPadding(16, 12, 16, 12);
-        LinearLayout.LayoutParams shotParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        shotParams.setMargins(0, 8, 0, 0);
-        btnScreenshot.setLayoutParams(shotParams);
-        btnScreenshot.setOnClickListener(v -> takeInstantScreenshot());
-        menuCard.addView(btnScreenshot);
-
-        // Action Button 3: Screen Video Recorder
-        Button btnVideo = new Button(this);
-        btnVideo.setText("🎥 Record Screen Video");
-        btnVideo.setTextColor(Color.WHITE);
-        btnVideo.setTextSize(12f);
-        GradientDrawable vidBg = new GradientDrawable();
-        vidBg.setColor(Color.parseColor("#8B5CF6"));
-        vidBg.setCornerRadius(16f);
-        btnVideo.setBackground(vidBg);
-        btnVideo.setPadding(16, 12, 16, 12);
-        LinearLayout.LayoutParams vidParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        vidParams.setMargins(0, 8, 0, 0);
-        btnVideo.setLayoutParams(vidParams);
-        btnVideo.setOnClickListener(v -> toggleVideoRecording());
-        menuCard.addView(btnVideo);
-
-        // Close Menu Button
-        btnCloseMenu = new Button(this);
-        btnCloseMenu.setText("✕ Close Assistant");
-        btnCloseMenu.setTextColor(Color.parseColor("#8696A0"));
-        btnCloseMenu.setTextSize(11f);
-        btnCloseMenu.setBackgroundColor(Color.TRANSPARENT);
-        btnCloseMenu.setOnClickListener(v -> stopSelf());
-        menuCard.addView(btnCloseMenu);
-
-        root.addView(bubbleRoot);
-        root.addView(menuCard, cardParams);
-
-        // Drag & Click Gesture Handling
+        // Touch listener for Drag & Drop + Tap toggle
         bubbleRoot.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
@@ -346,15 +264,18 @@ public class FloatingAssistantService extends Service {
                             isDrag = true;
                             params.x = initialX + dx;
                             params.y = initialY + dy;
-                            windowManager.updateViewLayout(floatingView, params);
+                            try {
+                                windowManager.updateViewLayout(floatingView, params);
+                            } catch (Exception ignored) {}
                         }
                         return true;
 
                     case MotionEvent.ACTION_UP:
                         if (!isDrag) {
-                            // Tap on bubble
                             if (isRecording) {
-                                toggleRecording(); // Tap to stop recording instantly
+                                stopAudioRecording();
+                            } else if (isRecordingVideo) {
+                                stopVideoRecording();
                             } else {
                                 toggleMenu();
                             }
@@ -365,7 +286,74 @@ public class FloatingAssistantService extends Service {
             }
         });
 
-        return root;
+        container.addView(bubbleRoot);
+        container.addView(menuCard);
+        return container;
+    }
+
+    private LinearLayout buildMenuCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(28, 24, 28, 24);
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setColor(Color.parseColor("#1F2C34"));
+        cardBg.setCornerRadius(24f);
+        cardBg.setStroke(2, Color.parseColor("#2A3942"));
+        card.setBackground(cardBg);
+        card.setElevation(20f);
+
+        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(540, LinearLayout.LayoutParams.WRAP_CONTENT);
+        cardParams.setMargins(0, 16, 0, 0);
+        card.setLayoutParams(cardParams);
+
+        // Title
+        TextView title = new TextView(this);
+        title.setText("Spy Capture Menu");
+        title.setTextColor(Color.parseColor("#E9EDEF"));
+        title.setTextSize(14f);
+        title.setTypeface(null, android.graphics.Typeface.BOLD);
+        title.setPadding(0, 0, 0, 16);
+        card.addView(title);
+
+        // Button: 1-Tap Record Audio
+        btnRecordAudio = createMenuButton("🎙️ Record Voice / Audio", "#00A884", v -> toggleAudioRecording());
+        card.addView(btnRecordAudio);
+
+        // Button: 1-Tap Instant Screenshot
+        Button btnScreenshot = createMenuButton("📸 1-Tap Screenshot", "#3B82F6", v -> takeInstantScreenshot());
+        card.addView(btnScreenshot);
+
+        // Button: 1-Tap Record Screen Video
+        Button btnScreenVideo = createMenuButton("🎥 Record Screen Video", "#8B5CF6", v -> toggleVideoRecording());
+        card.addView(btnScreenVideo);
+
+        // Button: Close Assistant
+        btnCloseMenu = createMenuButton("❌ Close Assistant", "#EF4444", v -> stopSelf());
+        card.addView(btnCloseMenu);
+
+        return card;
+    }
+
+    private Button createMenuButton(String text, String colorHex, View.OnClickListener listener) {
+        Button btn = new Button(this);
+        btn.setText(text);
+        btn.setTextColor(Color.WHITE);
+        btn.setTextSize(12.5f);
+        btn.setAllCaps(false);
+        btn.setOnClickListener(listener);
+
+        GradientDrawable btnBg = new GradientDrawable();
+        btnBg.setColor(Color.parseColor(colorHex));
+        btnBg.setCornerRadius(16f);
+        btn.setBackground(btnBg);
+
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 90
+        );
+        p.setMargins(0, 8, 0, 8);
+        btn.setLayoutParams(p);
+        return btn;
     }
 
     private void toggleMenu() {
@@ -377,300 +365,253 @@ public class FloatingAssistantService extends Service {
         }
     }
 
-    @SuppressLint("SetTextI18n")
-    private void toggleRecording() {
-        if (isRecording) {
-            stopAudioRecording();
+    // =============================================
+    // MEDIAPROJECTION CALLBACK
+    // =============================================
+
+    public void onMediaProjectionGranted(int resultCode, Intent data, String action) {
+        this.projResultCode = resultCode;
+        this.projData = data;
+
+        MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+        if (mgr != null) {
+            try {
+                this.mediaProjection = mgr.getMediaProjection(resultCode, (Intent) data.clone());
+            } catch (Exception e) {
+                Log.e(TAG, "Error obtaining MediaProjection", e);
+            }
+        }
+
+        if (ScreenCaptureActivity.ACTION_VIDEO.equals(action)) {
+            startRealVideoRecording();
         } else {
-            startAudioRecording();
+            captureRealPixelScreenshot();
         }
     }
 
-    @SuppressLint("SetTextI18n")
-    private void startAudioRecording() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
-                checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(this, "🎙️ Microphone permission required! Opening WA Recovery Pro...", Toast.LENGTH_LONG).show();
-            Intent appIntent = new Intent(this, MainActivity.class);
-            appIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(appIntent);
-            return;
-        }
+    // =============================================
+    // REAL SCREENSHOT ENGINE
+    // =============================================
 
-        try {
-            File dir = new File(getFilesDir(), "recovered_voices");
-            if (!dir.exists()) dir.mkdirs();
-
-            long timestamp = System.currentTimeMillis();
-            currentAudioPath = new File(dir, "captured_voice_" + timestamp + ".m4a").getAbsolutePath();
-
-            mediaRecorder = new MediaRecorder();
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            mediaRecorder.setAudioSamplingRate(44100);
-            mediaRecorder.setAudioEncodingBitRate(128000);
-            mediaRecorder.setOutputFile(currentAudioPath);
-            mediaRecorder.prepare();
-            mediaRecorder.start();
-
-            isRecording = true;
-            recordStartTime = System.currentTimeMillis();
-
-            // Update UI to recording state
-            GradientDrawable recBg = new GradientDrawable();
-            recBg.setColor(Color.parseColor("#991B1B"));
-            recBg.setCornerRadius(60f);
-            recBg.setStroke(4, Color.parseColor("#EF4444"));
-            bubbleRoot.setBackground(recBg);
-
-            if (menuCard != null) menuCard.setVisibility(View.GONE);
-
-            btnRecordAudio.setText("⏹️ Stop & Save Audio");
-            GradientDrawable stopBg = new GradientDrawable();
-            stopBg.setColor(Color.parseColor("#374151"));
-            stopBg.setCornerRadius(16f);
-            btnRecordAudio.setBackground(stopBg);
-
-            // Timer Updater
-            timerRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    if (isRecording) {
-                        long elapsedSec = (System.currentTimeMillis() - recordStartTime) / 1000;
-                        bubbleText.setText("🔴 " + formatDuration((int) elapsedSec) + " [Stop]");
-                        timerHandler.postDelayed(this, 1000);
-                    }
-                }
-            };
-            timerHandler.post(timerRunnable);
-
-            Toast.makeText(this, "🎙️ Recording View-Once Audio... Play voice note now!", Toast.LENGTH_SHORT).show();
-            Log.i(TAG, "Started View-Once audio recording to: " + currentAudioPath);
-
-        } catch (Exception e) {
-            Log.e(TAG, "Failed to start audio recording", e);
-            Toast.makeText(this, "Microphone permission required for audio recording", Toast.LENGTH_LONG).show();
-            isRecording = false;
-        }
-    }
-
-    @SuppressLint("SetTextI18n")
-    private void stopAudioRecording() {
-        if (!isRecording) return;
-        isRecording = false;
-
-        if (timerHandler != null && timerRunnable != null) {
-            timerHandler.removeCallbacks(timerRunnable);
-        }
-
-        try {
-            if (mediaRecorder != null) {
-                mediaRecorder.stop();
-                mediaRecorder.release();
-                mediaRecorder = null;
-            }
-
-            long durationSec = (System.currentTimeMillis() - recordStartTime) / 1000;
-            if (durationSec < 1) durationSec = 1;
-
-            // Register into Database as a Recovered Voice Message
-            long timestamp = System.currentTimeMillis();
-            String contactName = "View-Once Audio";
-
-            dbHelper.insertMessage(
-                    contactName,
-                    "🎙️ Captured View-Once Audio (" + durationSec + "s)",
-                    "voice",
-                    timestamp,
-                    "received",
-                    null,
-                    false,
-                    true,
-                    null,
-                    currentAudioPath,
-                    "voice_rec_" + timestamp
-            );
-
-            // Insert into Media Table
-            dbHelper.insertMedia(
-                    contactName,
-                    "voice",
-                    currentAudioPath,
-                    "captured_voice_" + timestamp + ".m4a",
-                    new File(currentAudioPath).length(),
-                    "audio/mp4",
-                    null,
-                    timestamp,
-                    true
-            );
-
-            // Notify Web Layer
-            RecoveryBridge bridge = RecoveryBridge.getInstance();
-            if (bridge != null) {
-                bridge.onNativeEvent("newMessage", contactName);
-            }
-
-            Toast.makeText(this, "✅ Voice note captured & saved to WA Recovery Pro!", Toast.LENGTH_LONG).show();
-            Log.i(TAG, "Successfully captured view-once voice note: " + currentAudioPath);
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error stopping audio recording", e);
-        }
-
-        // Reset Bubble UI
-        GradientDrawable bubbleBg = new GradientDrawable();
-        bubbleBg.setColor(Color.parseColor("#1B2A38"));
-        bubbleBg.setCornerRadius(60f);
-        bubbleBg.setStroke(3, Color.parseColor("#00A884"));
-        bubbleRoot.setBackground(bubbleBg);
-        bubbleText.setText("WA Capture");
-
-        btnRecordAudio.setText("🔴 Start Recording");
-        GradientDrawable btnBg = new GradientDrawable();
-        btnBg.setColor(Color.parseColor("#EF4444"));
-        btnBg.setCornerRadius(16f);
-        btnRecordAudio.setBackground(btnBg);
-    }
-
-    private boolean isRecordingVideo = false;
-    private long videoStartTime = 0;
-    private String currentVideoPath;
-
-    /**
-     * 1-Tap Instant Screenshot from Floating Overlay.
-     */
     private void takeInstantScreenshot() {
         if (menuCard != null) menuCard.setVisibility(View.GONE);
+
+        if (mediaProjection == null) {
+            Intent intent = new Intent(this, ScreenCaptureActivity.class);
+            intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        } else {
+            captureRealPixelScreenshot();
+        }
+    }
+
+    private void captureRealPixelScreenshot() {
         if (floatingView != null) floatingView.setVisibility(View.INVISIBLE);
 
         timerHandler.postDelayed(() -> {
             try {
-                File dir = new File(getFilesDir(), "media_backup");
-                if (!dir.exists()) dir.mkdirs();
-
-                long timestamp = System.currentTimeMillis();
-                String fileName = "wa_screenshot_" + timestamp + ".png";
-                File screenFile = new File(dir, fileName);
-
-                android.util.DisplayMetrics metrics = getResources().getDisplayMetrics();
-                int w = metrics.widthPixels > 0 ? metrics.widthPixels : 1080;
-                int h = metrics.heightPixels > 0 ? metrics.heightPixels : 1920;
-
-                Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
-                Canvas canvas = new Canvas(bitmap);
-                canvas.drawColor(Color.parseColor("#111B21"));
-
-                Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                paint.setColor(Color.parseColor("#00A884"));
-                paint.setTextSize(44f);
-                paint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("🛡️ WA Recovery Pro — Instant Capture", w / 2f, h / 2f - 60, paint);
-
-                Paint subPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                subPaint.setColor(Color.parseColor("#8696A0"));
-                subPaint.setTextSize(30f);
-                subPaint.setTextAlign(Paint.Align.CENTER);
-                canvas.drawText("Captured on " + new java.util.Date().toString(), w / 2f, h / 2f + 20, subPaint);
-
-                FileOutputStream out = new FileOutputStream(screenFile);
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
-                out.flush();
-                out.close();
-
-                // Generate Base64 thumbnail for instant web UI preview
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
-                String base64 = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
-
-                // 1. Insert into Messages table (so it appears in Dashboard & Chats)
-                dbHelper.insertMessage(
-                        "Screen Capture",
-                        "📸 Captured Screenshot",
-                        "image",
-                        timestamp,
-                        "received",
-                        null,
-                        false,
-                        true,
-                        base64,
-                        screenFile.getAbsolutePath(),
-                        "screen_" + timestamp
-                );
-
-                // 2. Insert into Media table (so it appears in Media -> Photos)
-                dbHelper.insertMedia(
-                        "Screen Capture",
-                        "image",
-                        screenFile.getAbsolutePath(),
-                        fileName,
-                        screenFile.length(),
-                        "image/png",
-                        base64,
-                        timestamp,
-                        true
-                );
-
-                // 3. Save copy to Phone Gallery (Pictures/WARecovery)
-                try {
-                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
-                    if (!pubDir.exists()) pubDir.mkdirs();
-                    File pubFile = new File(pubDir, fileName);
-                    FileOutputStream pubOut = new FileOutputStream(pubFile);
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, pubOut);
-                    pubOut.flush();
-                    pubOut.close();
-
-                    android.media.MediaScannerConnection.scanFile(
-                            this,
-                            new String[]{pubFile.getAbsolutePath()},
-                            new String[]{"image/png"},
-                            null
-                    );
-                } catch (Exception ignored) {}
-
-                // 4. Notify Web Layer
-                RecoveryBridge bridge = RecoveryBridge.getInstance();
-                if (bridge != null) {
-                    bridge.onNativeEvent("newMessage", "Screen Capture");
-                    bridge.onNativeEvent("mediaRecovered", "Screen Capture");
+                if (mediaProjection == null && projData != null) {
+                    MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+                    if (mgr != null) mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
                 }
 
-                Toast.makeText(this, "📸 Screenshot captured & saved to Photos & Gallery!", Toast.LENGTH_LONG).show();
-                Log.i(TAG, "Screenshot captured to: " + screenFile.getAbsolutePath());
+                if (mediaProjection == null) {
+                    if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+                    return;
+                }
+
+                DisplayMetrics metrics = getResources().getDisplayMetrics();
+                int w = metrics.widthPixels;
+                int h = metrics.heightPixels;
+                int density = metrics.densityDpi;
+
+                ImageReader imageReader = ImageReader.newInstance(w, h, PixelFormat.RGBA_8888, 2);
+                VirtualDisplay virtualDisplay = mediaProjection.createVirtualDisplay(
+                        "WARecovery_Screen",
+                        w, h, density,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        imageReader.getSurface(), null, null
+                );
+
+                imageReader.setOnImageAvailableListener(reader -> {
+                    Image image = null;
+                    try {
+                        image = reader.acquireLatestImage();
+                        if (image != null) {
+                            Image.Plane[] planes = image.getPlanes();
+                            ByteBuffer buffer = planes[0].getBuffer();
+                            int pixelStride = planes[0].getPixelStride();
+                            int rowStride = planes[0].getRowStride();
+                            int rowPadding = rowStride - pixelStride * w;
+
+                            Bitmap bitmap = Bitmap.createBitmap(w + rowPadding / pixelStride, h, Bitmap.Config.ARGB_8888);
+                            bitmap.copyPixelsFromBuffer(buffer);
+
+                            Bitmap cropped = Bitmap.createBitmap(bitmap, 0, 0, w, h);
+                            saveAndPublishScreenshot(cropped);
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error capturing screen frame", e);
+                    } finally {
+                        if (image != null) image.close();
+                        imageReader.close();
+                        if (virtualDisplay != null) virtualDisplay.release();
+                        if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
+                    }
+                }, timerHandler);
 
             } catch (Exception e) {
-                Log.e(TAG, "Failed to capture screenshot", e);
-                Toast.makeText(this, "📸 Screenshot saved to Media!", Toast.LENGTH_SHORT).show();
-            } finally {
+                Log.e(TAG, "Failed real screenshot", e);
                 if (floatingView != null) floatingView.setVisibility(View.VISIBLE);
             }
         }, 300);
     }
 
-    /**
-     * Screen Video Recording
-     */
+    private void saveAndPublishScreenshot(Bitmap bitmap) {
+        try {
+            File dir = new File(getFilesDir(), "media_backup");
+            if (!dir.exists()) dir.mkdirs();
+
+            long timestamp = System.currentTimeMillis();
+            String fileName = "wa_screenshot_" + timestamp + ".png";
+            File screenFile = new File(dir, fileName);
+
+            FileOutputStream out = new FileOutputStream(screenFile);
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out);
+            out.flush();
+            out.close();
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, baos);
+            String base64 = "data:image/jpeg;base64," + Base64.encodeToString(baos.toByteArray(), Base64.NO_WRAP);
+
+            // 1. Insert into Messages
+            dbHelper.insertMessage(
+                    "Screen Capture",
+                    "📸 Captured Screenshot",
+                    "image",
+                    timestamp,
+                    "received",
+                    null,
+                    false,
+                    true,
+                    base64,
+                    screenFile.getAbsolutePath(),
+                    "screen_" + timestamp
+            );
+
+            // 2. Insert into Media table
+            dbHelper.insertMedia(
+                    "Screen Capture",
+                    "image",
+                    screenFile.getAbsolutePath(),
+                    fileName,
+                    screenFile.length(),
+                    "image/png",
+                    base64,
+                    timestamp,
+                    true
+            );
+
+            // 3. Save copy to Phone Gallery (Pictures/WARecovery)
+            try {
+                File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
+                if (!pubDir.exists()) pubDir.mkdirs();
+                File pubFile = new File(pubDir, fileName);
+                FileOutputStream pubOut = new FileOutputStream(pubFile);
+                bitmap.compress(Bitmap.CompressFormat.PNG, 100, pubOut);
+                pubOut.flush();
+                pubOut.close();
+
+                android.media.MediaScannerConnection.scanFile(
+                        this,
+                        new String[]{pubFile.getAbsolutePath()},
+                        new String[]{"image/png"},
+                        null
+                );
+            } catch (Exception ignored) {}
+
+            // 4. Notify Web Layer
+            RecoveryBridge bridge = RecoveryBridge.getInstance();
+            if (bridge != null) {
+                bridge.onNativeEvent("newMessage", "Screen Capture");
+                bridge.onNativeEvent("mediaRecovered", "Screen Capture");
+            }
+
+            Toast.makeText(this, "📸 Real Screenshot captured & saved to Photos!", Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "Screenshot captured successfully: " + screenFile.getAbsolutePath());
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving screenshot", e);
+        }
+    }
+
+    // =============================================
+    // REAL SCREEN VIDEO ENGINE
+    // =============================================
+
     private void toggleVideoRecording() {
         if (isRecordingVideo) {
             stopVideoRecording();
         } else {
-            startVideoRecording();
+            if (menuCard != null) menuCard.setVisibility(View.GONE);
+            if (mediaProjection == null) {
+                Intent intent = new Intent(this, ScreenCaptureActivity.class);
+                intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            } else {
+                startRealVideoRecording();
+            }
         }
     }
 
-    private void startVideoRecording() {
+    private void startRealVideoRecording() {
         try {
+            if (mediaProjection == null && projData != null) {
+                MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+                if (mgr != null) mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
+            }
+
+            if (mediaProjection == null) {
+                Toast.makeText(this, "Please grant screen recording permission", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            DisplayMetrics metrics = getResources().getDisplayMetrics();
+            int w = (metrics.widthPixels / 2) * 2;
+            int h = (metrics.heightPixels / 2) * 2;
+            int density = metrics.densityDpi;
+
             File dir = new File(getFilesDir(), "media_backup");
             if (!dir.exists()) dir.mkdirs();
 
             long timestamp = System.currentTimeMillis();
             currentVideoPath = new File(dir, "wa_video_" + timestamp + ".mp4").getAbsolutePath();
 
+            videoRecorder = new MediaRecorder();
+            videoRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            videoRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
+            videoRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            videoRecorder.setOutputFile(currentVideoPath);
+            videoRecorder.setVideoSize(w, h);
+            videoRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
+            videoRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            videoRecorder.setVideoEncodingBitRate(5 * 1024 * 1024);
+            videoRecorder.setVideoFrameRate(30);
+            videoRecorder.prepare();
+
+            videoVirtualDisplay = mediaProjection.createVirtualDisplay(
+                    "WARecovery_Video",
+                    w, h, density,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    videoRecorder.getSurface(), null, null
+            );
+
+            videoRecorder.start();
             isRecordingVideo = true;
             videoStartTime = System.currentTimeMillis();
-
-            if (menuCard != null) menuCard.setVisibility(View.GONE);
 
             // Update UI to recording state
             GradientDrawable recBg = new GradientDrawable();
@@ -709,17 +650,28 @@ public class FloatingAssistantService extends Service {
         }
 
         try {
+            if (videoRecorder != null) {
+                try {
+                    videoRecorder.stop();
+                    videoRecorder.reset();
+                    videoRecorder.release();
+                } catch (Exception ignored) {}
+                videoRecorder = null;
+            }
+
+            if (videoVirtualDisplay != null) {
+                videoVirtualDisplay.release();
+                videoVirtualDisplay = null;
+            }
+
             long timestamp = System.currentTimeMillis();
             long durationSec = (System.currentTimeMillis() - videoStartTime) / 1000;
             if (durationSec < 1) durationSec = 1;
 
             if (currentVideoPath != null) {
                 File vFile = new File(currentVideoPath);
-                if (!vFile.exists()) {
-                    vFile.createNewFile();
-                }
 
-                // 1. Insert into Messages table (so it appears in Dashboard & Chats)
+                // 1. Insert into Messages table
                 dbHelper.insertMessage(
                         "Screen Recording",
                         "🎥 Screen Video (" + durationSec + "s)",
@@ -734,7 +686,7 @@ public class FloatingAssistantService extends Service {
                         "vid_" + timestamp
                 );
 
-                // 2. Insert into Media table (so it appears in Media -> Videos)
+                // 2. Insert into Media table
                 dbHelper.insertMedia(
                         "Screen Recording",
                         "video",
@@ -752,9 +704,9 @@ public class FloatingAssistantService extends Service {
                     File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES), "WARecovery");
                     if (!pubDir.exists()) pubDir.mkdirs();
                     File pubFile = new File(pubDir, "wa_video_" + timestamp + ".mp4");
-                    
-                    java.io.InputStream in = new java.io.FileInputStream(vFile);
-                    java.io.OutputStream out = new java.io.FileOutputStream(pubFile);
+
+                    InputStream in = new FileInputStream(vFile);
+                    OutputStream out = new FileOutputStream(pubFile);
                     byte[] buf = new byte[8192];
                     int len;
                     while ((len = in.read(buf)) > 0) {
@@ -777,55 +729,189 @@ public class FloatingAssistantService extends Service {
                     bridge.onNativeEvent("newMessage", "Screen Recording");
                     bridge.onNativeEvent("mediaRecovered", "Screen Recording");
                 }
-            }
 
-            Toast.makeText(this, "✅ Video saved to WA Recovery Pro & Gallery!", Toast.LENGTH_LONG).show();
-            Log.i(TAG, "Stopped Screen Video recording: " + currentVideoPath);
+                Toast.makeText(this, "🎥 Screen Video saved to Gallery!", Toast.LENGTH_LONG).show();
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "Error stopping video recording", e);
+        } finally {
+            resetBubbleUI();
         }
-
-        // Reset Bubble UI
-        GradientDrawable bubbleBg = new GradientDrawable();
-        bubbleBg.setColor(Color.parseColor("#1B2A38"));
-        bubbleBg.setCornerRadius(60f);
-        bubbleBg.setStroke(3, Color.parseColor("#00A884"));
-        bubbleRoot.setBackground(bubbleBg);
-        bubbleText.setText("WA Capture");
     }
 
-    private String formatDuration(int seconds) {
-        int m = seconds / 60;
-        int s = seconds % 60;
-        return String.format(java.util.Locale.US, "%d:%02d", m, s);
-    }
+    // =============================================
+    // AUDIO RECORDING (AAC 44.1kHz)
+    // =============================================
 
-    private int dpToPx(int dp) {
-        return (int) (dp * getResources().getDisplayMetrics().density);
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
-        isRunning = false;
+    private void toggleAudioRecording() {
         if (isRecording) {
             stopAudioRecording();
+        } else {
+            startAudioRecording();
         }
-        if (isRecordingVideo) {
-            stopVideoRecording();
+    }
+
+    private void startAudioRecording() {
+        try {
+            File dir = new File(getFilesDir(), "voice_backup");
+            if (!dir.exists()) dir.mkdirs();
+
+            long timestamp = System.currentTimeMillis();
+            currentAudioPath = new File(dir, "voice_spy_" + timestamp + ".m4a").getAbsolutePath();
+
+            audioRecorder = new MediaRecorder();
+            audioRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            audioRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+            audioRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            audioRecorder.setAudioSamplingRate(44100);
+            audioRecorder.setAudioEncodingBitRate(128000);
+            audioRecorder.setOutputFile(currentAudioPath);
+            audioRecorder.prepare();
+            audioRecorder.start();
+
+            isRecording = true;
+            recordStartTime = System.currentTimeMillis();
+
+            if (menuCard != null) menuCard.setVisibility(View.GONE);
+
+            // Update UI to recording state
+            GradientDrawable recBg = new GradientDrawable();
+            recBg.setColor(Color.parseColor("#EF4444"));
+            recBg.setCornerRadius(60f);
+            recBg.setStroke(4, Color.parseColor("#DC2626"));
+            bubbleRoot.setBackground(recBg);
+
+            timerRunnable = new Runnable() {
+                @Override
+                public void run() {
+                    if (isRecording) {
+                        long elapsedSec = (System.currentTimeMillis() - recordStartTime) / 1000;
+                        bubbleText.setText("🔴 " + formatDuration((int) elapsedSec) + " [Stop]");
+                        timerHandler.postDelayed(this, 1000);
+                    }
+                }
+            };
+            timerHandler.post(timerRunnable);
+
+            Toast.makeText(this, "🔴 Recording Audio... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            Log.i(TAG, "Started spy audio recording: " + currentAudioPath);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting spy audio recording", e);
+            Toast.makeText(this, "Could not start audio recorder", Toast.LENGTH_SHORT).show();
+            isRecording = false;
         }
-        if (floatingView != null && windowManager != null) {
-            windowManager.removeView(floatingView);
-            floatingView = null;
+    }
+
+    private void stopAudioRecording() {
+        if (!isRecording) return;
+        isRecording = false;
+
+        if (timerHandler != null && timerRunnable != null) {
+            timerHandler.removeCallbacks(timerRunnable);
         }
 
-        // Notify Web Layer that Floating Assistant has closed
-        RecoveryBridge bridge = RecoveryBridge.getInstance();
-        if (bridge != null) {
-            bridge.onNativeEvent("assistantStateChanged", "stopped");
+        try {
+            if (audioRecorder != null) {
+                audioRecorder.stop();
+                audioRecorder.reset();
+                audioRecorder.release();
+                audioRecorder = null;
+            }
+
+            long durationSec = (System.currentTimeMillis() - recordStartTime) / 1000;
+            if (durationSec < 1) durationSec = 1;
+
+            if (currentAudioPath != null && new File(currentAudioPath).exists()) {
+                long timestamp = System.currentTimeMillis();
+
+                // 1. Insert into Voice Notes Table
+                dbHelper.insertVoiceNote("Captured Voice", currentAudioPath, (int) durationSec, timestamp, true);
+
+                // 2. Insert into Messages Table
+                dbHelper.insertMessage(
+                        "Captured Voice",
+                        "🎙️ View-Once Voice Note (" + durationSec + "s)",
+                        "voice",
+                        timestamp,
+                        "received",
+                        null,
+                        false,
+                        true,
+                        null,
+                        currentAudioPath,
+                        "voice_" + timestamp
+                );
+
+                // 3. Notify Web Layer
+                RecoveryBridge bridge = RecoveryBridge.getInstance();
+                if (bridge != null) {
+                    bridge.onNativeEvent("newMessage", "Captured Voice");
+                    bridge.onNativeEvent("voiceRecovered", "Captured Voice");
+                }
+
+                Toast.makeText(this, "✅ Audio captured & saved!", Toast.LENGTH_SHORT).show();
+                Log.i(TAG, "Successfully captured audio to: " + currentAudioPath);
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping audio recording", e);
+        } finally {
+            resetBubbleUI();
+        }
+    }
+
+    private void resetBubbleUI() {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Color.parseColor("#111B21"));
+        bg.setCornerRadius(60f);
+        bg.setStroke(3, Color.parseColor("#00A884"));
+        bubbleRoot.setBackground(bg);
+        bubbleText.setText("WA Assistant");
+    }
+
+    private String formatDuration(int totalSeconds) {
+        int m = totalSeconds / 60;
+        int s = totalSeconds % 60;
+        return String.format("%02d:%02d", m, s);
+    }
+
+    // =============================================
+    // NOTIFICATION
+    // =============================================
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = new NotificationChannel(
+                    CHANNEL_ID,
+                    "Floating Capture Assistant",
+                    NotificationManager.IMPORTANCE_LOW
+            );
+            channel.setDescription("Shows floating capture bubble over WhatsApp");
+            NotificationManager nm = getSystemService(NotificationManager.class);
+            if (nm != null) nm.createNotificationChannel(channel);
+        }
+    }
+
+    private Notification buildForegroundNotification() {
+        Intent stopIntent = new Intent(this, FloatingAssistantService.class);
+        stopIntent.setAction(ACTION_STOP);
+        PendingIntent pStop = PendingIntent.getService(this, 0, stopIntent, PendingIntent.FLAG_IMMUTABLE);
+
+        Notification.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            builder = new Notification.Builder(this, CHANNEL_ID);
+        } else {
+            builder = new Notification.Builder(this);
         }
 
-        Log.i(TAG, "Floating Assistant Service stopped");
+        return builder
+                .setContentTitle("🛡️ WA Floating Assistant Active")
+                .setContentText("Tap to capture View-Once voice notes, screenshots & videos")
+                .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Close Bubble", pStop)
+                .setOngoing(true)
+                .build();
     }
 }

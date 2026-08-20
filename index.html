@@ -67,6 +67,27 @@
       </div>
     </header>
 
+    <!-- Multi-Select Action Bar (shown when items are selected) -->
+    <div id="selection-bar" class="selection-bar hidden">
+      <div class="selection-left">
+        <button class="header-btn" id="btn-selection-cancel" aria-label="Cancel Selection" title="Cancel">
+          <span class="material-icons-round">close</span>
+        </button>
+        <span class="selection-count" id="selection-count">0 selected</span>
+      </div>
+      <div class="selection-right">
+        <button class="header-btn" id="btn-selection-all" aria-label="Select All" title="Select All">
+          <span class="material-icons-round">select_all</span>
+        </button>
+        <button class="header-btn" id="btn-selection-share" aria-label="Share Selected" title="Share">
+          <span class="material-icons-round">share</span>
+        </button>
+        <button class="header-btn btn-danger-icon" id="btn-selection-delete" aria-label="Delete Selected" title="Delete">
+          <span class="material-icons-round">delete</span>
+        </button>
+      </div>
+    </div>
+
     <!-- Search Bar (collapsible) -->
     <div id="search-bar" class="search-bar hidden">
       <div class="search-input-wrap">
@@ -253,8 +274,14 @@
               <h3 id="chat-detail-name"></h3>
               <p id="chat-detail-status"></p>
             </div>
-            <button class="header-btn" id="btn-chat-export">
+            <button class="header-btn" id="btn-chat-select" aria-label="Select Messages" title="Select Messages">
+              <span class="material-icons-round">checklist</span>
+            </button>
+            <button class="header-btn" id="btn-chat-export" aria-label="Export Chat" title="Export Chat">
               <span class="material-icons-round">file_download</span>
+            </button>
+            <button class="header-btn btn-danger-icon" id="btn-chat-delete-all" aria-label="Delete Chat History" title="Delete Entire Chat">
+              <span class="material-icons-round">delete_sweep</span>
             </button>
           </div>
           <div id="chat-detail-messages" class="chat-detail-messages">
@@ -266,22 +293,27 @@
       <!-- ===================== MEDIA TAB ===================== -->
       <section id="page-media" class="page">
         <!-- Media Sub-tabs -->
-        <div class="sub-tabs">
-          <button class="sub-tab active" data-media="photos">
-            <span class="material-icons-round">photo</span>
-            Photos
-          </button>
-          <button class="sub-tab" data-media="videos">
-            <span class="material-icons-round">videocam</span>
-            Videos
-          </button>
-          <button class="sub-tab" data-media="docs">
-            <span class="material-icons-round">description</span>
-            Docs
-          </button>
-          <button class="sub-tab" data-media="stickers">
-            <span class="material-icons-round">emoji_emotions</span>
-            Stickers
+        <div class="sub-tabs-wrap" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px;">
+          <div class="sub-tabs" style="flex:1;">
+            <button class="sub-tab active" data-media="photos">
+              <span class="material-icons-round">photo</span>
+              Photos
+            </button>
+            <button class="sub-tab" data-media="videos">
+              <span class="material-icons-round">videocam</span>
+              Videos
+            </button>
+            <button class="sub-tab" data-media="docs">
+              <span class="material-icons-round">description</span>
+              Docs
+            </button>
+            <button class="sub-tab" data-media="stickers">
+              <span class="material-icons-round">emoji_emotions</span>
+              Stickers
+            </button>
+          </div>
+          <button class="header-btn" id="btn-media-select" aria-label="Select Media" title="Select Media" style="margin-left:8px;">
+            <span class="material-icons-round">checklist</span>
           </button>
         </div>
 
@@ -305,9 +337,17 @@
               <span id="lightbox-sender"></span>
               <span id="lightbox-date"></span>
             </div>
-            <button class="lightbox-btn" id="lightbox-download">
-              <span class="material-icons-round">file_download</span>
-            </button>
+            <div class="lightbox-actions" style="display:flex;gap:8px;">
+              <button class="lightbox-btn" id="lightbox-share" title="Share">
+                <span class="material-icons-round">share</span>
+              </button>
+              <button class="lightbox-btn" id="lightbox-download" title="Save to Device">
+                <span class="material-icons-round">file_download</span>
+              </button>
+              <button class="lightbox-btn btn-danger-icon" id="lightbox-delete" title="Delete">
+                <span class="material-icons-round">delete</span>
+              </button>
+            </div>
           </div>
           <div class="lightbox-content">
             <img id="lightbox-image" class="lightbox-image" src="" alt="">
@@ -324,7 +364,12 @@
               <h2 class="section-title">Voice Messages</h2>
               <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">Playback with multi-speed, AI transcription & sharing</p>
             </div>
-            <span class="badge badge-info" id="voice-count">0 notes</span>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="header-btn" id="btn-voice-select" aria-label="Select Voice Notes" title="Select Voice Notes">
+                <span class="material-icons-round">checklist</span>
+              </button>
+              <span class="badge badge-info" id="voice-count">0 notes</span>
+            </div>
           </div>
         </div>
 

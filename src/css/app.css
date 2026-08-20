@@ -2529,3 +2529,133 @@ body {
   }
 }
 
+/* ============================================
+   MULTI-SELECT ACTION BAR & SELECTION STYLES
+   ============================================ */
+.selection-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: #111B21;
+  border-bottom: 2px solid var(--green-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  z-index: 1200;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  animation: slideDownBar 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideDownBar {
+  from { transform: translateY(-100%); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.selection-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selection-count {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.selection-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-danger-icon {
+  color: #ef4444 !important;
+}
+
+.btn-danger-icon:hover {
+  background: rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Selectable Items */
+.selectable-item {
+  position: relative;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.selectable-item.selected {
+  background: rgba(0, 168, 132, 0.18) !important;
+  box-shadow: 0 0 0 2px var(--green-primary) !important;
+  border-radius: var(--radius-md);
+}
+
+.item-select-checkbox {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  background: rgba(0, 0, 0, 0.4);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.selection-mode .item-select-checkbox {
+  display: flex;
+}
+
+.selectable-item.selected .item-select-checkbox {
+  background: var(--green-primary);
+  border-color: var(--green-primary);
+}
+
+/* Quick Action Buttons on items */
+.item-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.btn-item-action {
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-item-action:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: var(--text-primary);
+}
+
+.btn-item-action.action-delete:hover {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.btn-item-action.action-share:hover {
+  background: rgba(0, 168, 132, 0.2);
+  color: var(--green-primary);
+}
+
+

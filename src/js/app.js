@@ -25,6 +25,8 @@ class WARecoveryApp {
     this.isNative = false;
     this.voiceSpeeds = {};
     this.bridge = null;
+    this.selectedIds = new Set();
+    this.selectionScope = null;
   }
 
   async init() {
@@ -45,6 +47,7 @@ class WARecoveryApp {
     this._initOnboarding();
     this._initHeaderButtons();
     this._initBackButtonHandler();
+    this._initSelectionBar();
 
     // Listen for native events (new WhatsApp messages / deleted messages)
     if (this.bridge) {
@@ -754,8 +757,11 @@ class WARecoveryApp {
       chatList.classList.remove('hidden');
       emptyState.classList.add('hidden');
 
+      this._attachItemTouchEvents(chatList, 'chats');
+
       chatList.querySelectorAll('.chat-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          if (this.selectionScope) return;
           this.openChat(item.dataset.contact);
         });
       });
@@ -800,6 +806,7 @@ class WARecoveryApp {
 
     if (messagesContainer) {
       messagesContainer.innerHTML = messages.map(m => renderMessageBubble(m)).join('');
+      this._attachItemTouchEvents(messagesContainer, 'chatMessages');
     }
     if (detail) detail.classList.remove('hidden');
 
@@ -923,8 +930,11 @@ class WARecoveryApp {
       grid.classList.remove('hidden');
       emptyState.classList.add('hidden');
 
+      this._attachItemTouchEvents(grid, 'media');
+
       grid.querySelectorAll('.media-item').forEach(item => {
-        item.addEventListener('click', () => {
+        item.addEventListener('click', (e) => {
+          if (this.selectionScope) return;
           const id = parseInt(item.dataset.mediaId);
           mediaManager.openLightbox(id);
         });
@@ -948,6 +958,7 @@ class WARecoveryApp {
       list.innerHTML = notes.map(v => renderVoiceItem(v)).join('');
       list.classList.remove('hidden');
       emptyState.classList.add('hidden');
+      this._attachItemTouchEvents(list, 'voice');
     } else {
       list.innerHTML = '';
       list.classList.add('hidden');
@@ -1260,6 +1271,330 @@ class WARecoveryApp {
     } catch (err) {
       showToast('Export failed', 'error');
     }
+  }
+
+  // =============================================
+  // SELECTION & BATCH ACTIONS
+  // =============================================
+
+  _initSelectionBar() {
+    const cancelBtn = document.getElementById('btn-selection-cancel');
+    const allBtn = document.getElementById('btn-selection-all');
+    const shareBtn = document.getElementById('btn-selection-share');
+    const deleteBtn = document.getElementById('btn-selection-delete');
+
+    if (cancelBtn) cancelBtn.addEventListener('click', () => this.cancelSelection());
+    if (allBtn) allBtn.addEventListener('click', () => this.toggleSelectAll());
+    if (shareBtn) shareBtn.addEventListener('click', () => this.shareSelected());
+    if (deleteBtn) deleteBtn.addEventListener('click', () => this.deleteSelected());
+
+    const chatSelectBtn = document.getElementById('btn-chat-select');
+    if (chatSelectBtn) {
+      chatSelectBtn.addEventListener('click', () => {
+        if (this.selectionScope === 'chatMessages') this.cancelSelection();
+        else this.enterSelection('chatMessages');
+      });
+    }
+
+    const chatDeleteAllBtn = document.getElementById('btn-chat-delete-all');
+    if (chatDeleteAllBtn) {
+      chatDeleteAllBtn.addEventListener('click', () => {
+        if (this.currentChat) this.deleteChatHistory(this.currentChat);
+      });
+    }
+
+    const mediaSelectBtn = document.getElementById('btn-media-select');
+    if (mediaSelectBtn) {
+      mediaSelectBtn.addEventListener('click', () => {
+        if (this.selectionScope === 'media') this.cancelSelection();
+        else this.enterSelection('media');
+      });
+    }
+
+    const voiceSelectBtn = document.getElementById('btn-voice-select');
+    if (voiceSelectBtn) {
+      voiceSelectBtn.addEventListener('click', () => {
+        if (this.selectionScope === 'voice') this.cancelSelection();
+        else this.enterSelection('voice');
+      });
+    }
+  }
+
+  enterSelection(scope, initialId = null) {
+    this.selectionScope = scope;
+    this.selectedIds = new Set();
+    if (initialId) this.selectedIds.add(initialId);
+
+    const bar = document.getElementById('selection-bar');
+    if (bar) bar.classList.remove('hidden');
+
+    document.body.classList.add('selection-mode');
+    this._updateSelectionUI();
+  }
+
+  cancelSelection() {
+    this.selectionScope = null;
+    this.selectedIds.clear();
+
+    const bar = document.getElementById('selection-bar');
+    if (bar) bar.classList.add('hidden');
+
+    document.body.classList.remove('selection-mode');
+    document.querySelectorAll('.selectable-item').forEach(el => el.classList.remove('selected'));
+  }
+
+  toggleSelectItem(scope, id, element) {
+    if (!this.selectionScope) {
+      this.enterSelection(scope, id);
+      return;
+    }
+
+    if (this.selectionScope !== scope) {
+      this.cancelSelection();
+      this.enterSelection(scope, id);
+      return;
+    }
+
+    if (this.selectedIds.has(id)) {
+      this.selectedIds.delete(id);
+      if (element) element.classList.remove('selected');
+    } else {
+      this.selectedIds.add(id);
+      if (element) element.classList.add('selected');
+    }
+
+    if (this.selectedIds.size === 0) {
+      this.cancelSelection();
+    } else {
+      this._updateSelectionUI();
+    }
+  }
+
+  toggleSelectAll() {
+    if (!this.selectionScope) return;
+
+    let items = [];
+    if (this.selectionScope === 'chats') {
+      items = Array.from(document.querySelectorAll('#chat-list .chat-item'));
+    } else if (this.selectionScope === 'chatMessages') {
+      items = Array.from(document.querySelectorAll('#chat-detail-messages .message-bubble'));
+    } else if (this.selectionScope === 'media') {
+      items = Array.from(document.querySelectorAll('#media-grid .media-item'));
+    } else if (this.selectionScope === 'voice') {
+      items = Array.from(document.querySelectorAll('#voice-list .voice-item'));
+    }
+
+    const allSelected = items.every(el => {
+      const id = el.dataset.id || el.dataset.contact || el.dataset.mediaId || el.dataset.voiceId;
+      return this.selectedIds.has(id);
+    });
+
+    if (allSelected) {
+      this.selectedIds.clear();
+      items.forEach(el => el.classList.remove('selected'));
+      this.cancelSelection();
+    } else {
+      items.forEach(el => {
+        const id = el.dataset.id || el.dataset.contact || el.dataset.mediaId || el.dataset.voiceId;
+        if (id) {
+          this.selectedIds.add(id);
+          el.classList.add('selected');
+        }
+      });
+      this._updateSelectionUI();
+    }
+  }
+
+  _updateSelectionUI() {
+    const countEl = document.getElementById('selection-count');
+    if (countEl) countEl.textContent = `${this.selectedIds.size} selected`;
+
+    document.querySelectorAll('.selectable-item').forEach(el => {
+      const id = el.dataset.id || el.dataset.contact || el.dataset.mediaId || el.dataset.voiceId;
+      if (id && this.selectedIds.has(id)) {
+        el.classList.add('selected');
+      } else {
+        el.classList.remove('selected');
+      }
+    });
+  }
+
+  _attachItemTouchEvents(container, scope) {
+    if (!container) return;
+    container.querySelectorAll('.selectable-item').forEach(item => {
+      let pressTimer = null;
+      let isLongPress = false;
+
+      const id = item.dataset.id || item.dataset.contact || item.dataset.mediaId || item.dataset.voiceId;
+
+      const startPress = () => {
+        isLongPress = false;
+        pressTimer = setTimeout(() => {
+          isLongPress = true;
+          this.toggleSelectItem(scope, id, item);
+          if (navigator.vibrate) {
+            try { navigator.vibrate(40); } catch (ignored) {}
+          }
+        }, 450);
+      };
+
+      const cancelPress = () => {
+        if (pressTimer) clearTimeout(pressTimer);
+      };
+
+      item.addEventListener('pointerdown', startPress);
+      item.addEventListener('pointerup', cancelPress);
+      item.addEventListener('pointercancel', cancelPress);
+      item.addEventListener('pointerleave', cancelPress);
+
+      item.addEventListener('click', (e) => {
+        if (this.selectionScope) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.toggleSelectItem(scope, id, item);
+        }
+      });
+    });
+  }
+
+  async deleteSelected() {
+    if (this.selectedIds.size === 0) return;
+    const count = this.selectedIds.size;
+    const scope = this.selectionScope;
+
+    showModal(
+      `Delete ${count} Selected Item${count > 1 ? 's' : ''}`,
+      `Are you sure you want to permanently delete ${count} selected item${count > 1 ? 's' : ''}?`,
+      async () => {
+        try {
+          if (scope === 'chats') {
+            for (const contact of this.selectedIds) {
+              await db.deleteChatHistory(contact);
+            }
+            showToast(`${count} chat conversation(s) deleted`, 'success');
+            await this.loadMessages();
+            await this.loadDashboard();
+          } else if (scope === 'chatMessages') {
+            const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+            await db.deleteMessages(ids);
+            showToast(`${count} message(s) deleted`, 'success');
+            if (this.currentChat) await this.openChat(this.currentChat);
+            await this.loadDashboard();
+          } else if (scope === 'media') {
+            const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+            await db.deleteMediaBatch(ids);
+            showToast(`${count} media item(s) deleted`, 'success');
+            await this.loadMediaGrid();
+            await this.loadDashboard();
+          } else if (scope === 'voice') {
+            const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+            await db.deleteVoiceNotesBatch(ids);
+            showToast(`${count} voice note(s) deleted`, 'success');
+            await this.loadVoiceNotes();
+            await this.loadDashboard();
+          }
+        } catch (err) {
+          showToast('Error deleting items', 'error');
+        } finally {
+          this.cancelSelection();
+        }
+      }
+    );
+  }
+
+  async shareSelected() {
+    if (this.selectedIds.size === 0) return;
+    const scope = this.selectionScope;
+
+    try {
+      if (scope === 'chatMessages') {
+        const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+        const allMsgs = await db.getMessages();
+        const selectedMsgs = allMsgs.filter(m => ids.includes(m.id));
+        const text = selectedMsgs.map(m => `[${formatTime(m.timestamp)}] ${m.contact}: ${m.text || (m.type === 'voice' ? '🎤 Voice' : '📷 Photo')}`).join('\n\n');
+        
+        if (navigator.share) {
+          await navigator.share({ title: 'Recovered Messages', text: text });
+        } else {
+          navigator.clipboard?.writeText(text);
+          showToast('Messages copied to clipboard', 'success');
+        }
+      } else if (scope === 'media') {
+        const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+        const allMedia = await db.getMedia();
+        const firstSelected = allMedia.find(m => ids.includes(m.id));
+        if (firstSelected) {
+          const path = firstSelected.url || firstSelected.filePath || firstSelected.thumbnail;
+          if (this.bridge && window.Capacitor?.isNativePlatform()) {
+            await this.bridge.shareMedia({
+              path: path,
+              mimeType: firstSelected.mimeType || 'image/jpeg',
+              title: 'Share Recovered Media'
+            });
+          } else if (navigator.share) {
+            await navigator.share({ title: 'Recovered Media', url: path.startsWith('http') ? path : undefined });
+          }
+        }
+      } else if (scope === 'voice') {
+        const ids = Array.from(this.selectedIds).map(id => parseInt(id));
+        const allVoices = await db.getVoiceNotes();
+        const firstVoice = allVoices.find(v => ids.includes(v.id));
+        if (firstVoice) {
+          const path = firstVoice.audioUrl || firstVoice.url || firstVoice.path;
+          if (this.bridge && window.Capacitor?.isNativePlatform()) {
+            await this.bridge.shareMedia({
+              path: path,
+              mimeType: 'audio/mp4',
+              title: 'Share Voice Note'
+            });
+          } else if (navigator.share) {
+            await navigator.share({ title: 'Voice Note', text: `Voice Note from ${firstVoice.contact}` });
+          }
+        }
+      }
+    } catch (err) {
+      console.log('Share error:', err);
+    }
+  }
+
+  async deleteMessageItem(id) {
+    showModal(
+      'Delete Message',
+      'Are you sure you want to permanently delete this recovered message?',
+      async () => {
+        await db.deleteMessage(parseInt(id));
+        showToast('Message deleted', 'success');
+        if (this.currentChat) await this.openChat(this.currentChat);
+        await this.loadDashboard();
+      }
+    );
+  }
+
+  async deleteVoiceItem(id) {
+    showModal(
+      'Delete Voice Note',
+      'Are you sure you want to permanently delete this voice note?',
+      async () => {
+        await db.deleteVoiceNote(parseInt(id));
+        showToast('Voice note deleted', 'success');
+        await this.loadVoiceNotes();
+        await this.loadDashboard();
+      }
+    );
+  }
+
+  async deleteChatHistory(contact) {
+    showModal(
+      `Delete Chat with ${contact}`,
+      `Are you sure you want to delete all recovered messages for ${contact}?`,
+      async () => {
+        await db.deleteChatHistory(contact);
+        showToast(`Chat with ${contact} deleted`, 'success');
+        this.closeChat();
+        await this.loadMessages();
+        await this.loadDashboard();
+      }
+    );
   }
 }
 
