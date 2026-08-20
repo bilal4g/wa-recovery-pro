@@ -914,7 +914,7 @@ public class RecoveryBridge extends Plugin {
             return;
         }
 
-        path = path.replace("file://", "");
+        path = path.replace("file://", "").trim();
         File file = new File(path);
         if (!file.exists()) {
             call.reject("File does not exist: " + path);
@@ -923,22 +923,32 @@ public class RecoveryBridge extends Plugin {
 
         try {
             Context ctx = getContext();
-            Uri contentUri;
-            try {
-                Class<?> fpClass = Class.forName("androidx.core.content.FileProvider");
-                java.lang.reflect.Method getUri = fpClass.getMethod("getUriForFile", Context.class, String.class, File.class);
-                contentUri = (Uri) getUri.invoke(null, ctx, ctx.getPackageName() + ".fileprovider", file);
-            } catch (Exception e) {
-                contentUri = Uri.fromFile(file);
+            Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
+                    ctx,
+                    ctx.getPackageName() + ".fileprovider",
+                    file
+            );
+
+            if (file.getName().endsWith(".m4a") || file.getName().endsWith(".mp4")) {
+                mimeType = "audio/mp4";
+            } else if (file.getName().endsWith(".opus") || file.getName().endsWith(".ogg")) {
+                mimeType = "audio/ogg";
             }
 
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);
             shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            java.util.List<android.content.pm.ResolveInfo> resInfoList = ctx.getPackageManager()
+                    .queryIntentActivities(shareIntent, PackageManager.MATCH_DEFAULT_ONLY);
+            for (android.content.pm.ResolveInfo resolveInfo : resInfoList) {
+                String packageName = resolveInfo.activityInfo.packageName;
+                ctx.grantUriPermission(packageName, contentUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
 
             Intent chooser = Intent.createChooser(shareIntent, title);
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            chooser.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
             ctx.startActivity(chooser);
 
             JSObject res = new JSObject();

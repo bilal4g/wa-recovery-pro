@@ -188,49 +188,44 @@ class VoiceOptionsManager {
   /**
    * Share via Native System Share Sheet (WhatsApp, Telegram, etc.) as an actual Audio File.
    */
+  async _resolveAudioPath() {
+    if (!this.currentVoice) return null;
+    let path = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    if (!path || path === 'null' || path === 'undefined') {
+      try {
+        const allNotes = await db.getVoiceNotes();
+        const note = allNotes.find(v => String(v.id) === String(this.currentVoice.id));
+        if (note) {
+          path = note.filePath || note.voicePath || note.audioUrl || note.url || note.path;
+        }
+      } catch (ignored) {}
+    }
+    return path;
+  }
+
+  /**
+   * Share via Native System Share Sheet (WhatsApp, Telegram, etc.) as an actual Audio File.
+   */
   async shareSystem() {
     if (!this.currentVoice) return;
 
-    const audioPath = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const audioPath = await this._resolveAudioPath();
     const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
 
     if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
       try {
         await bridge.shareMedia({
           path: audioPath,
-          mimeType: 'audio/*',
+          mimeType: 'audio/mp4',
           title: `Voice Note from ${this.currentVoice.contact}`
         });
         return;
       } catch (e) {
-        console.log('Native shareMedia fallback to text:', e);
+        console.log('Native shareMedia error:', e);
       }
     }
 
-    const shareText = `🎙️ [Recovered Voice Note]\nSender: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`;
-    if (bridge) {
-      try {
-        await bridge.shareText({ text: shareText, title: `Voice note from ${this.currentVoice.contact}` });
-        return;
-      } catch (ignored) {}
-    }
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Voice note from ${this.currentVoice.contact}`,
-          text: shareText
-        });
-        showToast('Shared successfully', 'success');
-      } else {
-        await navigator.clipboard.writeText(shareText);
-        showToast('Voice note details copied to clipboard', 'info');
-      }
-    } catch (err) {
-      if (err.name !== 'AbortError') {
-        showToast('Could not share voice note', 'error');
-      }
-    }
+    showToast('Audio file not found on device', 'error');
   }
 
   /**
@@ -239,28 +234,23 @@ class VoiceOptionsManager {
   async shareToWhatsApp() {
     if (!this.currentVoice) return;
 
-    const audioPath = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const audioPath = await this._resolveAudioPath();
     const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
 
     if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
       try {
         await bridge.shareMedia({
           path: audioPath,
-          mimeType: 'audio/*',
+          mimeType: 'audio/mp4',
           title: `Send Voice Note to WhatsApp`
         });
         return;
       } catch (e) {
-        console.log('Share to WhatsApp media fallback:', e);
+        console.log('Share to WhatsApp media error:', e);
       }
     }
 
-    const message = encodeURIComponent(
-      `🎙️ [Recovered Voice Message]\nFrom: ${this.currentVoice.contact}\nDuration: ${formatDuration(this.currentVoice.duration || 10)}\nRecovered via WA Recovery Pro 🛡️`
-    );
-    const waUrl = `https://api.whatsapp.com/send?text=${message}`;
-    window.open(waUrl, '_blank');
-    showToast('Opening WhatsApp to share...', 'info');
+    showToast('Audio file not found to share to WhatsApp', 'error');
   }
 
   /**
