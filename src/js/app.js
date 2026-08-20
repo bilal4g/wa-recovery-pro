@@ -868,9 +868,51 @@ class WARecoveryApp {
       });
     }
 
+    const simulatorBtn = document.getElementById('setting-run-simulator');
+    if (simulatorBtn) {
+      simulatorBtn.addEventListener('click', () => this.runTestSimulator());
+    }
+
     if (enableBtn) {
       enableBtn.addEventListener('click', () => this.showOnboarding());
     }
+  }
+
+  async runTestSimulator() {
+    showToast('🧪 Running Recovery Simulator...', 'info', 1500);
+
+    // 1. Simulate a realistic deleted WhatsApp message
+    await db.addMessage({
+      contact: 'Sarah Jenkins',
+      text: 'Hey! Are we still meeting for dinner tonight? Let me know ASAP! 🍕',
+      timestamp: Date.now() - 30000,
+      isDeleted: true,
+      direction: 'received',
+      type: 'text'
+    });
+
+    // 2. Simulate a realistic recovered voice note
+    await db.addMessage({
+      contact: 'Omar Al-Hassan',
+      text: 'Voice note (0:14)',
+      timestamp: Date.now() - 120000,
+      isDeleted: true,
+      direction: 'received',
+      type: 'voice'
+    });
+
+    await db.addVoiceNote({
+      contact: 'Omar Al-Hassan',
+      duration: '0:14',
+      timestamp: Date.now() - 120000,
+      isDeleted: true,
+      audioUrl: null
+    });
+
+    // 3. Update stats and UI
+    await this.syncNativeData();
+    showToast('✅ Test Recovery Complete! Check Messages & Voice tabs.', 'success', 3500);
+    this.navigateTo('messages');
   }
 
   async loadSettings() {
