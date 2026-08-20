@@ -4,8 +4,6 @@ import android.media.MediaMetadataRetriever;
 import android.os.Build;
 import android.os.Environment;
 import android.os.FileObserver;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 
 import java.io.File;
@@ -13,10 +11,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,6 +102,7 @@ public class MediaScanner {
         }
     }
 
+    @SuppressWarnings("deprecation")
     private void watchDirectoryRecursive(File dir) {
         if (dir == null || !dir.exists() || !dir.isDirectory()) return;
 
