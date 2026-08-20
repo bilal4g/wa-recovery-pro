@@ -10,6 +10,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.provider.Settings;
+import android.util.Base64;
 import android.util.Log;
 
 import android.Manifest;
@@ -432,6 +433,7 @@ public class RecoveryBridge extends Plugin {
         String path = call.getString("path");
         Long id = call.getLong("id");
         Double speed = call.getDouble("speed", 1.0);
+        Double pitch = call.getDouble("pitch", 1.0);
 
         try {
             if (mediaPlayer != null) {
@@ -443,7 +445,7 @@ public class RecoveryBridge extends Plugin {
                 path = path.replace("file://", "").trim();
             }
 
-            // If path is missing or invalid, lookup by ID in database
+            // If path is missing or invalid, lookup by ID in database (TABLE_VOICE_NOTES then TABLE_MESSAGES)
             if ((path == null || path.isEmpty() || !new File(path).exists()) && id != null) {
                 JSONArray notes = dbHelper.getVoiceNotesAsJSON();
                 for (int i = 0; i < notes.length(); i++) {
@@ -453,6 +455,16 @@ public class RecoveryBridge extends Plugin {
                         if (path == null || path.isEmpty()) path = note.optString("voicePath");
                         if (path == null || path.isEmpty()) path = note.optString("audioUrl");
                         break;
+                    }
+                }
+                if (path == null || path.isEmpty() || !new File(path).exists()) {
+                    JSONArray msgs = dbHelper.getMessagesAsJSON(null, null);
+                    for (int i = 0; i < msgs.length(); i++) {
+                        JSONObject msg = msgs.getJSONObject(i);
+                        if (msg.optLong("id") == id) {
+                            path = msg.optString("mediaUrl");
+                            break;
+                        }
                     }
                 }
             }
@@ -515,9 +527,14 @@ public class RecoveryBridge extends Plugin {
 
             mediaPlayer.prepare();
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && speed != null && speed > 0) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 android.media.PlaybackParams params = new android.media.PlaybackParams();
-                params.setSpeed(speed.floatValue());
+                if (speed != null && speed > 0) {
+                    params.setSpeed(speed.floatValue());
+                }
+                if (pitch != null && pitch > 0) {
+                    params.setPitch(pitch.floatValue());
+                }
                 mediaPlayer.setPlaybackParams(params);
             }
 
@@ -915,11 +932,31 @@ public class RecoveryBridge extends Plugin {
             return;
         }
 
-        path = path.replace("file://", "").trim();
-        File file = new File(path);
-        if (!file.exists()) {
-            call.reject("File does not exist: " + path);
-            return;
+        File file;
+        if (path.startsWith("data:") && path.contains("base64,")) {
+            try {
+                String base64Data = path.substring(path.indexOf("base64,") + 7);
+                byte[] decodedBytes = Base64.decode(base64Data, Base64.DEFAULT);
+                String ext = mimeType.contains("png") ? ".png" : (mimeType.contains("mp4") || mimeType.contains("audio") ? ".m4a" : ".jpg");
+                File cacheDir = new File(getContext().getCacheDir(), "shared_media");
+                if (!cacheDir.exists()) cacheDir.mkdirs();
+                file = new File(cacheDir, "shared_" + System.currentTimeMillis() + ext);
+                FileOutputStream fos = new FileOutputStream(file);
+                fos.write(decodedBytes);
+                fos.flush();
+                fos.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Failed to decode base64 for sharing", e);
+                call.reject("Failed to decode media for sharing: " + e.getMessage());
+                return;
+            }
+        } else {
+            path = path.replace("file://", "").trim();
+            file = new File(path);
+            if (!file.exists()) {
+                call.reject("File does not exist: " + path);
+                return;
+            }
         }
 
         try {
@@ -937,6 +974,10 @@ public class RecoveryBridge extends Plugin {
                 mimeType = "audio/mp4";
             } else if (file.getName().endsWith(".opus") || file.getName().endsWith(".ogg")) {
                 mimeType = "audio/ogg";
+            } else if (file.getName().endsWith(".jpg") || file.getName().endsWith(".jpeg")) {
+                mimeType = "image/jpeg";
+            } else if (file.getName().endsWith(".png")) {
+                mimeType = "image/png";
             }
 
             Intent shareIntent = new Intent(Intent.ACTION_SEND);

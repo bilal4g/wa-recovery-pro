@@ -1,13 +1,14 @@
 {
-  "version": "2.0.1",
-  "build": 39,
+  "version": "2.0.2",
+  "build": 40,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.1 — Floating Quick Preview & Android 14 Single-Use Token Fix",
+  "title": "WA Recovery Pro v2.0.2 — Live Voice Pitch Effects, Photo Sync & True Image Sharing",
   "changelog": [
-    "📸 Floating Quick Preview: Instant interactive thumbnail popup attached to the bubble after capturing screenshot",
-    "🛡️ Black Frame Filter: 25-point matrix validation ignores black/dark GPU frames and skips protected screens",
-    "🎥 Fresh Token Video Recording: Compliant with Android 14 single-use token lifecycle to eliminate SecurityException",
-    "📤 FileProvider Notification Sharing: Seamless screenshot preview and direct sharing from system notification"
+    "🔊 Universal Voice Playback: Voice messages now seamlessly play from both Messages tab and Voice tab",
+    "⚡ Real-Time Pitch Effects: Chipmunk, Deep Voice & Robot effects applied to hardware speaker via Android PlaybackParams",
+    "🛡️ Zero Voice Duplication: Strict ID & file path deduplication prevents duplicate 'Voice Note' entries in IndexedDB",
+    "🖼️ Proactive Photo Recovery: Enhanced notification image extraction and instant media scanner sync to Photos tab",
+    "📤 True Image Sharing: Base64 photos decode into native cache files for direct, lossless image sharing to WhatsApp"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

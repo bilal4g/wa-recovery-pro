@@ -200,8 +200,8 @@ public class MediaScanner {
         if (processedFiles.contains(absPath) || !file.exists() || file.length() == 0) return;
         processedFiles.add(absPath);
 
-        // Strict protection: NEVER process any file older than when this service started
-        if (file.lastModified() < (SCANNER_START_TIME - 15000)) {
+        // Strict protection: NEVER process any file older than when this service started (with 2 min grace period)
+        if (file.lastModified() < (SCANNER_START_TIME - 120000)) {
             return;
         }
 
@@ -218,6 +218,13 @@ public class MediaScanner {
                 int duration = getAudioDuration(file);
                 dbHelper.insertVoiceNote("Voice Note", backupPath, duration, file.lastModified(), false);
                 dbHelper.updateLatestMessageVoiceAudio(null, backupPath);
+                
+                RecoveryBridge bridge = RecoveryBridge.getInstance();
+                if (bridge != null) {
+                    bridge.onNativeEvent("voiceRecovered", backupPath);
+                    bridge.onNativeEvent("newMessage", "Voice Note");
+                }
+                
                 Log.i(TAG, "✅ [Voice Captured] Saved voice note: " + file.getName());
                 return;
             }
@@ -234,6 +241,12 @@ public class MediaScanner {
                     file.lastModified(),
                     false
             );
+
+            RecoveryBridge bridge = RecoveryBridge.getInstance();
+            if (bridge != null) {
+                bridge.onNativeEvent("mediaRecovered", mediaType);
+                bridge.onNativeEvent("newMessage", "WhatsApp Media");
+            }
 
             Log.i(TAG, "✅ [0ms Real-Time Capture] Successfully saved: " + file.getName() + " -> " + backupPath);
 

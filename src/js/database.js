@@ -252,15 +252,30 @@ class RecoveryDatabase {
     await this._ready;
     const existing = await this._getAll('voiceNotes');
     const path = voice.audioUrl || voice.url || voice.path || voice.filePath || '';
-    const isDup = existing.some(v =>
-      (voice.id && v.id && v.id === voice.id) ||
-      (path && (v.url === path || v.audioUrl === path || v.path === path) && Math.abs((v.timestamp || 0) - (voice.timestamp || 0)) < 3000)
+    
+    // Check if entry already exists (by string-matched ID or by exact file path)
+    const existingNote = existing.find(v =>
+      (voice.id != null && v.id != null && String(v.id) === String(voice.id)) ||
+      (path && (v.url === path || v.audioUrl === path || v.path === path || v.filePath === path))
     );
-    if (isDup) return null;
+
+    if (existingNote) {
+      // Update fields without duplicating
+      if (path && (!existingNote.audioUrl || existingNote.audioUrl === 'null')) {
+        existingNote.audioUrl = path;
+        existingNote.url = path;
+        existingNote.filePath = path;
+        existingNote.path = path;
+      }
+      if (voice.contact && voice.contact !== 'Voice Note' && existingNote.contact === 'Voice Note') {
+        existingNote.contact = voice.contact;
+      }
+      return existingNote;
+    }
 
     const item = {
       id: voice.id,
-      contact: voice.contact || 'Unknown',
+      contact: voice.contact || 'Voice Note',
       url: path,
       audioUrl: path,
       path: path,

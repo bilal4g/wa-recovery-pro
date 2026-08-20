@@ -5,6 +5,8 @@ import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Base64;
@@ -238,9 +240,19 @@ public class NotificationListener extends NotificationListenerService {
                     false,
                     isViewOnce,
                     thumbnailBase64,
-                    thumbnailBase64,
+                    savedPhotoPath != null ? savedPhotoPath : thumbnailBase64,
                     key
             );
+
+            // Trigger proactive media scanning for incoming media files
+            if ("image".equals(type) || "video".equals(type) || "voice".equals(type) || "audio".equals(type)) {
+                if (mediaScanner != null) {
+                    mediaScanner.triggerOnDemandScan();
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (mediaScanner != null) mediaScanner.triggerOnDemandScan();
+                    }, 600);
+                }
+            }
 
             // If voice note, extract incoming .opus audio file immediately
             if ("voice".equals(type) || "audio".equals(type)) {
@@ -420,7 +432,17 @@ public class NotificationListener extends NotificationListenerService {
                 best = pickLarger(best, largeIcon);
             }
 
-            // 4. Scan ALL extras keys for any hidden Bitmap values
+            // 4. notification.getLargeIcon() (Android 6.0+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notification.getLargeIcon() != null) {
+                try {
+                    android.graphics.drawable.Drawable d = notification.getLargeIcon().loadDrawable(this);
+                    if (d instanceof android.graphics.drawable.BitmapDrawable) {
+                        best = pickLarger(best, ((android.graphics.drawable.BitmapDrawable) d).getBitmap());
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            // 5. Scan ALL extras keys for any hidden Bitmap values
             for (String key : extras.keySet()) {
                 try {
                     Object val = extras.get(key);

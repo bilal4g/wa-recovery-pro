@@ -1058,9 +1058,13 @@ class WARecoveryApp {
 
     if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined' || audioSrc === '') {
       const allNotes = await db.getVoiceNotes();
-      const note = allNotes.find(v => String(v.id) === String(voiceId));
+      let note = allNotes.find(v => String(v.id) === String(voiceId));
+      if (!note) {
+        const allMsgs = await db.getMessages();
+        note = allMsgs.find(m => String(m.id) === String(voiceId));
+      }
       if (note) {
-        audioSrc = note.audioUrl || note.url || note.path || note.filePath;
+        audioSrc = note.audioUrl || note.url || note.path || note.filePath || note.mediaUrl;
       }
     }
 

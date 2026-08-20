@@ -42,6 +42,22 @@ class VoiceOptionsManager {
     }
   }
 
+  getPitchMultiplier() {
+    switch (this.currentEffect) {
+      case 'chipmunk': return 1.65;
+      case 'deep': return 0.65;
+      case 'robot': return 0.85;
+      default: return 1.0;
+    }
+  }
+
+  getSpeedMultiplier() {
+    let speed = this.currentSpeed || 1.0;
+    if (this.currentEffect === 'chipmunk') speed *= 1.15;
+    if (this.currentEffect === 'robot') speed *= 0.95;
+    return speed;
+  }
+
   _bindModalEvents() {
     const closeBtn = document.getElementById('voice-options-close');
     const overlay = document.getElementById('voice-options-overlay');
@@ -55,21 +71,55 @@ class VoiceOptionsManager {
 
     // Speed button handlers
     document.querySelectorAll('.speed-option-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         document.querySelectorAll('.speed-option-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentSpeed = parseFloat(btn.dataset.speed);
-        showToast(`Playback speed: ${this.currentSpeed}x`, 'info', 1500);
+        showToast(`Playback speed: ${this.currentSpeed}x`, 'info', 1200);
+
+        if (this.currentVoice) {
+          const audioPath = await this._resolveAudioPath();
+          const bridge = window.Capacitor?.Plugins?.RecoveryBridge;
+          if (bridge && audioPath) {
+            try {
+              await bridge.playVoiceNote({
+                path: audioPath,
+                id: typeof this.currentVoice.id === 'number' ? this.currentVoice.id : null,
+                speed: this.getSpeedMultiplier(),
+                pitch: this.getPitchMultiplier()
+              });
+            } catch (err) {
+              console.log('Play speed error:', err);
+            }
+          }
+        }
       });
     });
 
     // Voice Effect handlers
     document.querySelectorAll('.effect-option-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         document.querySelectorAll('.effect-option-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this.currentEffect = btn.dataset.effect;
-        showToast(`Voice effect: ${btn.textContent.trim()}`, 'info', 1500);
+        showToast(`Voice effect: ${btn.textContent.trim()}`, 'info', 1200);
+
+        if (this.currentVoice) {
+          const audioPath = await this._resolveAudioPath();
+          const bridge = window.Capacitor?.Plugins?.RecoveryBridge;
+          if (bridge && audioPath) {
+            try {
+              await bridge.playVoiceNote({
+                path: audioPath,
+                id: typeof this.currentVoice.id === 'number' ? this.currentVoice.id : null,
+                speed: this.getSpeedMultiplier(),
+                pitch: this.getPitchMultiplier()
+              });
+            } catch (err) {
+              console.log('Play effect error:', err);
+            }
+          }
+        }
       });
     });
 
