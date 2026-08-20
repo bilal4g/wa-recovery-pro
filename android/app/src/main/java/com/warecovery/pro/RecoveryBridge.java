@@ -365,12 +365,29 @@ public class RecoveryBridge extends Plugin {
     // =============================================
 
     /**
-     * Trigger a voice notes scan.
+     * Get all voice notes from SQLite database.
+     */
+    @PluginMethod()
+    public void getVoiceNotes(PluginCall call) {
+        try {
+            JSONArray voiceNotes = dbHelper.getVoiceNotesAsJSON();
+            JSObject result = new JSObject();
+            result.put("voiceNotes", voiceNotes.toString());
+            result.put("count", voiceNotes.length());
+            result.put("success", true);
+            call.resolve(result);
+        } catch (Exception e) {
+            call.reject("Failed to get voice notes", e);
+        }
+    }
+
+    /**
+     * Trigger a real-time voice notes sync.
      */
     @PluginMethod()
     public void scanVoiceNotes(PluginCall call) {
         new Thread(() -> {
-            int count = voiceExtractor.scanAndExtract();
+            int count = voiceExtractor != null ? voiceExtractor.scanAndExtract() : 0;
             JSObject result = new JSObject();
             result.put("count", count);
             call.resolve(result);
@@ -477,18 +494,6 @@ public class RecoveryBridge extends Plugin {
             call.resolve(result);
         } catch (Exception e) {
             call.reject("Error stopping audio", e);
-        }
-    }
-
-    @PluginMethod()
-    public void getVoiceNotes(PluginCall call) {
-        try {
-            JSONArray voiceNotes = dbHelper.getVoiceNotesAsJSON();
-            JSObject result = new JSObject();
-            result.put("voiceNotes", voiceNotes);
-            call.resolve(result);
-        } catch (Exception e) {
-            call.reject("Failed to get voice notes", e);
         }
     }
 

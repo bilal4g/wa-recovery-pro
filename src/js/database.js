@@ -250,9 +250,21 @@ class RecoveryDatabase {
 
   async addVoiceNote(voice) {
     await this._ready;
+    const existing = await this._getAll('voiceNotes');
+    const path = voice.audioUrl || voice.url || voice.path || voice.filePath || '';
+    const isDup = existing.some(v =>
+      (voice.id && v.id && v.id === voice.id) ||
+      (path && (v.url === path || v.audioUrl === path || v.path === path) && Math.abs((v.timestamp || 0) - (voice.timestamp || 0)) < 3000)
+    );
+    if (isDup) return null;
+
     const item = {
+      id: voice.id,
       contact: voice.contact || 'Unknown',
-      url: voice.url || '',
+      url: path,
+      audioUrl: path,
+      path: path,
+      filePath: path,
       duration: voice.duration || 0,
       waveform: voice.waveform || [],
       timestamp: voice.timestamp || Date.now(),

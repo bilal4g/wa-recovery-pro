@@ -735,6 +735,9 @@ public class FloatingAssistantService extends Service {
                 return;
             }
 
+            // Android 14+ requires only 1 active VirtualDisplay per token: pause persistent mirror
+            cleanupPersistentMirror();
+
             DisplayMetrics metrics = getResources().getDisplayMetrics();
             int w = (metrics.widthPixels / 2) * 2;
             int h = (metrics.heightPixels / 2) * 2;
@@ -747,14 +750,18 @@ public class FloatingAssistantService extends Service {
             currentVideoPath = new File(dir, "wa_video_" + timestamp + ".mp4").getAbsolutePath();
 
             videoRecorder = new MediaRecorder();
-            videoRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            try {
+                videoRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            } catch (Exception ignored) {}
             videoRecorder.setVideoSource(MediaRecorder.VideoSource.SURFACE);
             videoRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
             videoRecorder.setOutputFile(currentVideoPath);
             videoRecorder.setVideoSize(w, h);
             videoRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-            videoRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
-            videoRecorder.setVideoEncodingBitRate(5 * 1024 * 1024);
+            try {
+                videoRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+            } catch (Exception ignored) {}
+            videoRecorder.setVideoEncodingBitRate(6 * 1024 * 1024);
             videoRecorder.setVideoFrameRate(30);
             videoRecorder.prepare();
 
@@ -762,7 +769,7 @@ public class FloatingAssistantService extends Service {
                     "WARecovery_Video",
                     w, h, density,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    videoRecorder.getSurface(), null, null
+                    videoRecorder.getSurface(), null, timerHandler
             );
 
             videoRecorder.start();
@@ -788,12 +795,17 @@ public class FloatingAssistantService extends Service {
             };
             timerHandler.post(timerRunnable);
 
-            Toast.makeText(this, "🎥 Recording Screen Video... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            triggerHapticFeedback();
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "🎥 Recording Screen Video... Tap bubble to finish!", Toast.LENGTH_SHORT).show();
+            });
             Log.i(TAG, "Started Screen Video recording: " + currentVideoPath);
 
         } catch (Exception e) {
             Log.e(TAG, "Error starting video recording", e);
             isRecordingVideo = false;
+            // Restore persistent mirror if video failed
+            initPersistentScreenMirror();
         }
     }
 
@@ -816,9 +828,12 @@ public class FloatingAssistantService extends Service {
             }
 
             if (videoVirtualDisplay != null) {
-                videoVirtualDisplay.release();
+                try { videoVirtualDisplay.release(); } catch (Exception ignored) {}
                 videoVirtualDisplay = null;
             }
+
+            // Restore persistent mirror for instant screenshots
+            initPersistentScreenMirror();
 
             long timestamp = System.currentTimeMillis();
             long durationSec = (System.currentTimeMillis() - videoStartTime) / 1000;

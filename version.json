@@ -1,13 +1,12 @@
 {
-  "version": "1.8.3",
-  "build": 24,
+  "version": "1.8.4",
+  "build": 25,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.3 — Exact Audio Track Playback & Clean Media Separation",
+  "title": "WA Recovery Pro v1.8.4 — Real Voice Sync & Exact Track Hardware Playback",
   "changelog": [
-    "🎵 Exact Audio Playback: Fixed voice note playback engine to resolve the exact recorded file without playing repeat tracks",
-    "🖼️ Clean Gallery Separation: Voice captures now strictly go to the Voice tab (0 empty/black boxes in Photos/Videos)",
-    "🔔 Rich Screenshot Notification: Instant status bar alert with picture preview & 1-tap Share",
-    "📳 Haptic Vibration: Instant physical confirmation upon capture"
+    "🎙️ Real Voice Note Sync: Fixed missing getVoiceNotes bridge method, allowing real recorded voice files to sync into the app",
+    "🎵 Exact Hardware Audio Track: Tapping any voice note plays the exact physical AAC/Opus file recorded for that specific session",
+    "🖼️ Zero Media Ghosting: Completely separated voice from photo/video gallery"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

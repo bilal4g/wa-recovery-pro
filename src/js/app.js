@@ -182,6 +182,32 @@ class WARecoveryApp {
         } catch (mErr) {
           console.log('Media sync error:', mErr);
         }
+
+        // 3. Sync Native Voice Notes Table
+        try {
+          const vnResult = await this.bridge.getVoiceNotes();
+          if (vnResult && vnResult.voiceNotes) {
+            const nativeVoices = typeof vnResult.voiceNotes === 'string' ? JSON.parse(vnResult.voiceNotes) : vnResult.voiceNotes;
+            if (Array.isArray(nativeVoices)) {
+              for (const vn of nativeVoices) {
+                const path = vn.audioUrl || vn.voicePath || vn.filePath || '';
+                await db.addVoiceNote({
+                  id: vn.id,
+                  contact: vn.contact || 'Voice Note',
+                  url: path,
+                  audioUrl: path,
+                  path: path,
+                  filePath: path,
+                  duration: vn.duration || 10,
+                  timestamp: vn.timestamp || Date.now(),
+                  isDeleted: !!vn.isDeleted
+                });
+              }
+            }
+          }
+        } catch (vnErr) {
+          console.log('Voice sync error:', vnErr);
+        }
       }
 
       // Refresh current page view
