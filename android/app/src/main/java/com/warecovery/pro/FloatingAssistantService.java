@@ -399,6 +399,31 @@ public class FloatingAssistantService extends Service {
     // MEDIAPROJECTION CALLBACK & PERSISTENT MIRROR
     // =============================================
 
+    public MediaProjection ensureMediaProjection() {
+        if (this.mediaProjection == null && projData != null) {
+            try {
+                MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+                if (mgr != null) {
+                    this.mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
+                    if (this.mediaProjection != null) {
+                        this.mediaProjection.registerCallback(new MediaProjection.Callback() {
+                            @Override
+                            public void onStop() {
+                                Log.i(TAG, "MediaProjection stopped by system");
+                                cleanupPersistentMirror();
+                                mediaProjection = null;
+                            }
+                        }, timerHandler);
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error obtaining MediaProjection", e);
+                this.mediaProjection = null;
+            }
+        }
+        return this.mediaProjection;
+    }
+
     public void onMediaProjectionGranted(int resultCode, Intent data, String action) {
         this.projResultCode = resultCode;
         this.projData = (Intent) data.clone();
@@ -413,26 +438,9 @@ public class FloatingAssistantService extends Service {
             }
         } catch (Exception ignored) {}
 
-        if (this.mediaProjection == null) {
-            try {
-                MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-                this.mediaProjection = mgr.getMediaProjection(resultCode, (Intent) data.clone());
-                
-                if (this.mediaProjection != null) {
-                    this.mediaProjection.registerCallback(new MediaProjection.Callback() {
-                        @Override
-                        public void onStop() {
-                            Log.i(TAG, "MediaProjection stopped by system");
-                            cleanupPersistentMirror();
-                            mediaProjection = null;
-                        }
-                    }, timerHandler);
-
-                    initPersistentScreenMirror();
-                }
-            } catch (Exception e) {
-                Log.e(TAG, "Error obtaining MediaProjection", e);
-            }
+        ensureMediaProjection();
+        if (this.mediaProjection != null) {
+            initPersistentScreenMirror();
         }
 
         if (ScreenCaptureActivity.ACTION_VIDEO.equals(action)) {
@@ -506,61 +514,7 @@ public class FloatingAssistantService extends Service {
     private void takeInstantScreenshot() {
         if (menuCard != null) menuCard.setVisibility(View.GONE);
 
-        // 1. If Accessibility Service is NOT enabled, teleport directly to Settings
-        if (!WAAccessibilityService.isRunning() && !WAAccessibilityService.isAccessibilityServiceEnabled(this)) {
-            new Handler(Looper.getMainLooper()).post(() -> {
-                Toast.makeText(FloatingAssistantService.this, "⚡ Turn ON WA Recovery Pro in Accessibility for 0-Prompt Instant Screenshots", Toast.LENGTH_LONG).show();
-            });
-            try {
-                Intent intent = new Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS);
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
-                startActivity(intent);
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to open accessibility settings", e);
-            }
-            return;
-        }
-
-        // 2. Take 0-Prompt Instant Screenshot via Accessibility Hardware Buffer
-        if (WAAccessibilityService.isRunning()) {
-            if (floatingView != null) floatingView.setVisibility(View.INVISIBLE);
-
-            timerHandler.postDelayed(() -> {
-                WAAccessibilityService.getInstance().takeInstantScreenshot(new WAAccessibilityService.ScreenshotCallback() {
-                    @Override
-                    public void onSuccess(Bitmap bitmap) {
-                        try {
-                            if (bitmap != null) {
-                                saveAndPublishScreenshot(bitmap);
-                            }
-                        } finally {
-                            if (floatingView != null) {
-                                new Handler(Looper.getMainLooper()).post(() -> floatingView.setVisibility(View.VISIBLE));
-                            }
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(String error) {
-                        Log.e(TAG, "Accessibility screenshot failed: " + error + " — falling back to MediaProjection");
-                        if (floatingView != null) {
-                            new Handler(Looper.getMainLooper()).post(() -> floatingView.setVisibility(View.VISIBLE));
-                        }
-                        if (mediaProjection == null || persistentVirtualDisplay == null) {
-                            Intent intent = new Intent(FloatingAssistantService.this, ScreenCaptureActivity.class);
-                            intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);
-                            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            startActivity(intent);
-                        } else {
-                            captureRealPixelScreenshot();
-                        }
-                    }
-                });
-            }, 120);
-            return;
-        }
-
-        // Fallback for older devices or if service connecting
+        ensureMediaProjection();
         if (mediaProjection == null || persistentVirtualDisplay == null) {
             Intent intent = new Intent(this, ScreenCaptureActivity.class);
             intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_SCREENSHOT);
@@ -818,23 +772,10 @@ public class FloatingAssistantService extends Service {
         } else {
             if (menuCard != null) menuCard.setVisibility(View.GONE);
 
-            // Try to reuse existing or saved MediaProjection token first
-            if (mediaProjection == null && projData != null) {
-                try {
-                    MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-                    if (mgr != null) {
-                        mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
-                    }
-                } catch (Exception e) {
-                    Log.w(TAG, "Could not reuse saved projection token", e);
-                    mediaProjection = null;
-                }
-            }
-
+            ensureMediaProjection();
             if (mediaProjection != null) {
                 startRealVideoRecording();
             } else {
-                // Only prompt share screen if we have no token at all
                 Intent intent = new Intent(this, ScreenCaptureActivity.class);
                 intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -845,10 +786,7 @@ public class FloatingAssistantService extends Service {
 
     private void startRealVideoRecording() {
         try {
-            if (mediaProjection == null && projData != null) {
-                MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
-                if (mgr != null) mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
-            }
+            ensureMediaProjection();
 
             if (mediaProjection == null) {
                 Toast.makeText(this, "Please grant screen recording permission", Toast.LENGTH_SHORT).show();

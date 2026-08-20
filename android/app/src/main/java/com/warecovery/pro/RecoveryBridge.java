@@ -427,6 +427,7 @@ public class RecoveryBridge extends Plugin {
      * Play a voice note using Android's native hardware audio player.
      */
     @PluginMethod()
+    @SuppressWarnings("deprecation")
     public void playVoiceNote(PluginCall call) {
         String path = call.getString("path");
         Long id = call.getLong("id");
@@ -508,9 +509,7 @@ public class RecoveryBridge extends Plugin {
             // Fallback for older devices or if setPreferredDevice didn't work
             if (audioManager != null) {
                 try {
-                    @SuppressWarnings("deprecation")
-                    android.media.AudioManager am = audioManager;
-                    am.setSpeakerphoneOn(true);
+                    audioManager.setSpeakerphoneOn(true);
                 } catch (Exception ignored) {}
             }
 

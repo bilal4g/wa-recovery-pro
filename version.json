@@ -1,13 +1,13 @@
 {
-  "version": "1.9.9",
-  "build": 37,
+  "version": "2.0.0",
+  "build": 38,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.9.9 — Native Voice Note Sync & Dual Screenshot Fallback",
+  "title": "WA Recovery Pro v2.0.0 — Pure MediaProjection Engine & Android 14 Callback Compliance",
   "changelog": [
+    "🎥 Android 14 Callback Fixed: MediaProjection callback registered before VirtualDisplay creation to eliminate IllegalStateException",
+    "📸 Pure MediaProjection Capture: Clean, high-performance pixel screenshots without Accessibility Service requirements",
     "🔄 Native Voice Sync: getVoiceNotes bridge syncs SQLite voice recordings with complete audio paths to Web UI",
-    "🔊 Full Playback & Sharing: Voice notes now properly load on-device paths for instant speaker playback and direct WhatsApp sharing",
-    "📸 Dual Screenshot Fallback: Automatically falls back to MediaProjection if Accessibility is unavailable on OEM",
-    "🎥 16-Pixel Aligned Video Recording: High compatibility across all Android devices"
+    "🔊 Real Audio Sharing: Direct .m4a audio file sharing to WhatsApp with full URI read permissions"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
