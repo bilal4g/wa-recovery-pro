@@ -1,15 +1,14 @@
 {
-  "version": "1.7.0",
-  "build": 17,
+  "version": "1.7.3",
+  "build": 18,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.7.0 — WAMR Multi-Message Engine & 1-Tap Media Suite",
+  "title": "WA Recovery Pro v1.7.3 — Full Media Gallery Engine & Photo Sync",
   "changelog": [
-    "📨 WAMR-Grade Multi-Message Recovery: Extracts every single batched message from WhatsApp bundles",
-    "🚫 Intelligent Call Notification Filter: Ignores incoming/missed call alerts",
-    "🎙️ Exact Voice Note Playback: Fixed audio binding to play the exact recorded sound",
-    "📸 1-Tap Floating Screenshot: Takes instant screen captures & auto-saves to Photos",
-    "🎥 Screen Video Recorder: 1-Tap video recording directly from the floating bubble",
-    "⚡ 0% Freeze / ANR background architecture"
+    "🖼️ 100% WhatsApp Photo Interception: Saves incoming notification photos and view-once images to Media Gallery & Phone Gallery",
+    "🔄 Live Native Media Synchronization: Fixed getMedia SQLite query to instantly populate Media -> Photos tab",
+    "🎈 Floating Assistant 2-Way Sync: Closing the assistant instantly resets the main app toggle button",
+    "🎥 Screen Video to Gallery: Auto-copies videos to phone's Movies/WARecovery folder",
+    "📨 WAMR-Grade Multi-Message Recovery & Call filtering"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

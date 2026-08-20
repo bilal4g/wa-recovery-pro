@@ -4,12 +4,15 @@ import android.app.Notification;
 import android.graphics.Bitmap;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
 import android.util.Base64;
 import android.util.Log;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 
 /**
  * Android NotificationListenerService that captures WhatsApp messages in real-time.
@@ -177,23 +180,51 @@ public class NotificationListener extends NotificationListenerService {
             // Extract thumbnail / photo
             Bitmap picture = extractBitmap(notification, extras);
             String thumbnailBase64 = null;
+            String savedPhotoPath = null;
+
             if (picture != null) {
                 thumbnailBase64 = bitmapToBase64(picture);
+                type = "image";
+
+                try {
+                    File dir = new File(getFilesDir(), "media_backup");
+                    if (!dir.exists()) dir.mkdirs();
+                    File photoFile = new File(dir, "wa_photo_" + timestamp + ".jpg");
+                    FileOutputStream fos = new FileOutputStream(photoFile);
+                    picture.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+                    fos.flush();
+                    fos.close();
+                    savedPhotoPath = photoFile.getAbsolutePath();
+
+                    // Save copy to Phone Gallery Pictures/WARecovery
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
+                    if (!pubDir.exists()) pubDir.mkdirs();
+                    File pubFile = new File(pubDir, "wa_photo_" + timestamp + ".jpg");
+                    FileOutputStream pubFos = new FileOutputStream(pubFile);
+                    picture.compress(Bitmap.CompressFormat.JPEG, 90, pubFos);
+                    pubFos.flush();
+                    pubFos.close();
+                    android.media.MediaScannerConnection.scanFile(this, new String[]{pubFile.getAbsolutePath()}, new String[]{"image/jpeg"}, null);
+                } catch (Exception e) {
+                    Log.e(TAG, "Error saving notification photo to file", e);
+                }
             }
 
-            // If photo or view-once, register in media table
-            if (thumbnailBase64 != null && ("image".equals(type) || isViewOnce)) {
+            // If photo or view-once or thumbnail exists, register in media table
+            if (thumbnailBase64 != null || "image".equals(type) || isViewOnce) {
+                String mediaUrl = savedPhotoPath != null ? savedPhotoPath : thumbnailBase64;
                 dbHelper.insertMedia(
                         contact,
                         "image",
-                        thumbnailBase64,
+                        mediaUrl,
                         "wa_photo_" + timestamp + ".jpg",
-                        0,
+                        savedPhotoPath != null ? new File(savedPhotoPath).length() : 0,
                         "image/jpeg",
                         thumbnailBase64,
                         timestamp,
                         false
                 );
+                notifyWebLayer("mediaRecovered", contact);
             }
 
             // Store message in database

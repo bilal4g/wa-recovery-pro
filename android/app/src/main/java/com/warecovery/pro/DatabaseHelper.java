@@ -282,6 +282,41 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return db.insert(TABLE_MEDIA, null, values);
     }
 
+    public JSONArray getMediaAsJSON(String type) throws JSONException {
+        SQLiteDatabase db = getReadableDatabase();
+        String selection = null;
+        String[] selectionArgs = null;
+
+        if (type != null && !type.equals("all") && !type.isEmpty()) {
+            selection = COL_MEDIA_TYPE + " = ?";
+            selectionArgs = new String[]{type};
+        }
+
+        Cursor cursor = db.query(TABLE_MEDIA, null, selection, selectionArgs,
+                null, null, COL_TIMESTAMP + " DESC", "500");
+
+        JSONArray result = new JSONArray();
+        while (cursor.moveToNext()) {
+            JSONObject m = new JSONObject();
+            m.put("id", cursor.getLong(cursor.getColumnIndexOrThrow(COL_ID)));
+            m.put("contact", cursor.getString(cursor.getColumnIndexOrThrow(COL_CONTACT)));
+            m.put("mediaType", cursor.getString(cursor.getColumnIndexOrThrow(COL_MEDIA_TYPE)));
+            m.put("filePath", cursor.getString(cursor.getColumnIndexOrThrow(COL_FILE_PATH)));
+            m.put("fileName", cursor.getString(cursor.getColumnIndexOrThrow(COL_FILE_NAME)));
+            m.put("fileSize", cursor.getLong(cursor.getColumnIndexOrThrow(COL_FILE_SIZE)));
+            m.put("mimeType", cursor.getString(cursor.getColumnIndexOrThrow(COL_MIME_TYPE)));
+            String thumb = cursor.getString(cursor.getColumnIndexOrThrow(COL_THUMBNAIL));
+            String path = cursor.getString(cursor.getColumnIndexOrThrow(COL_FILE_PATH));
+            m.put("thumbnail", thumb != null ? thumb : path);
+            m.put("url", thumb != null ? thumb : path);
+            m.put("timestamp", cursor.getLong(cursor.getColumnIndexOrThrow(COL_TIMESTAMP)));
+            m.put("isDeleted", cursor.getInt(cursor.getColumnIndexOrThrow(COL_IS_DELETED)) == 1);
+            result.put(m);
+        }
+        cursor.close();
+        return result;
+    }
+
     // ---- Voice Notes CRUD ----
 
     public long insertVoiceNote(String contact, String voicePath, int duration,

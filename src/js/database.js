@@ -224,7 +224,16 @@ class RecoveryDatabase {
     let media = await this._getAll('media');
 
     if (filter.mediaType) {
-      media = media.filter(m => m.mediaType === filter.mediaType);
+      const targetType = filter.mediaType.toLowerCase();
+      if (targetType === 'photos' || targetType === 'image' || targetType === 'photo') {
+        media = media.filter(m => m.mediaType === 'image' || m.mediaType === 'photo' || m.mediaType === 'photos');
+      } else if (targetType === 'videos' || targetType === 'video') {
+        media = media.filter(m => m.mediaType === 'video' || m.mediaType === 'videos');
+      } else if (targetType === 'voice' || targetType === 'audio' || targetType === 'voices') {
+        media = media.filter(m => m.mediaType === 'voice' || m.mediaType === 'audio');
+      } else {
+        media = media.filter(m => m.mediaType === filter.mediaType);
+      }
     }
     if (filter.contact) {
       media = media.filter(m => m.contact === filter.contact);

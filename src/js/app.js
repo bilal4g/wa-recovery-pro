@@ -114,26 +114,70 @@ class WARecoveryApp {
           const el4 = document.getElementById('stat-voice'); if (el4) el4.textContent = stats.totalVoiceNotes || 0;
         }
 
+        // 1. Sync Native Messages
         const msgResult = await this.bridge.getMessages({ filter: 'all' });
         if (msgResult && msgResult.messages) {
           const nativeMessages = typeof msgResult.messages === 'string' ? JSON.parse(msgResult.messages) : msgResult.messages;
           if (Array.isArray(nativeMessages)) {
             for (const m of nativeMessages) {
+              const thumb = m.thumbnail || m.thumbnail_base64 || m.media_url;
+              const isImg = m.type === 'image' || m.type === 'photo' || !!m.is_view_once || (thumb && thumb.startsWith('data:image'));
+              
               await db.addMessage({
                 contact: m.contact,
                 text: m.text,
-                type: m.type,
+                type: isImg ? 'image' : m.type,
                 timestamp: m.timestamp,
-                isDeleted: !!m.is_deleted,
+                isDeleted: !!m.is_deleted || !!m.isDeleted,
                 direction: m.direction || 'received',
-                groupName: m.group_name,
-                isViewOnce: !!m.is_view_once,
-                thumbnailBase64: m.thumbnail || m.thumbnail_base64 || m.media_url,
-                mediaThumbnail: m.thumbnail || m.thumbnail_base64 || m.media_url,
-                mediaUrl: m.media_url || m.thumbnail
+                groupName: m.group_name || m.groupName,
+                isViewOnce: !!m.is_view_once || !!m.isViewOnce,
+                thumbnailBase64: thumb,
+                mediaThumbnail: thumb,
+                mediaUrl: m.media_url || m.mediaUrl || thumb
               });
+
+              // Also ensure photo messages are registered in media gallery
+              if (isImg && thumb) {
+                await db.addMedia({
+                  contact: m.contact,
+                  mediaType: 'image',
+                  url: m.media_url || m.mediaUrl || thumb,
+                  thumbnail: thumb,
+                  filename: `wa_photo_${m.timestamp || Date.now()}.jpg`,
+                  filesize: 0,
+                  mimeType: 'image/jpeg',
+                  timestamp: m.timestamp || Date.now(),
+                  isDeleted: !!m.is_deleted || !!m.isDeleted
+                });
+              }
             }
           }
+        }
+
+        // 2. Sync Native Media Table
+        try {
+          const mediaResult = await this.bridge.getMedia({ type: 'all' });
+          if (mediaResult && mediaResult.media) {
+            const nativeMedia = typeof mediaResult.media === 'string' ? JSON.parse(mediaResult.media) : mediaResult.media;
+            if (Array.isArray(nativeMedia)) {
+              for (const med of nativeMedia) {
+                await db.addMedia({
+                  contact: med.contact || 'WhatsApp Media',
+                  mediaType: med.mediaType || 'image',
+                  url: med.url || med.thumbnail || med.filePath,
+                  thumbnail: med.thumbnail || med.url || med.filePath,
+                  filename: med.fileName || `wa_media_${med.id || Date.now()}`,
+                  filesize: med.fileSize || 0,
+                  mimeType: med.mimeType || 'image/jpeg',
+                  timestamp: med.timestamp || Date.now(),
+                  isDeleted: !!med.isDeleted
+                });
+              }
+            }
+          }
+        } catch (mErr) {
+          console.log('Media sync error:', mErr);
         }
       }
 

@@ -348,8 +348,12 @@ public class RecoveryBridge extends Plugin {
      */
     @PluginMethod()
     public void getMedia(PluginCall call) {
+        String type = call.getString("type", "all");
         try {
+            JSONArray media = dbHelper.getMediaAsJSON(type);
             JSObject result = new JSObject();
+            result.put("media", media.toString());
+            result.put("count", media.length());
             result.put("success", true);
             call.resolve(result);
         } catch (Exception e) {
