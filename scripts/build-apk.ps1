@@ -19,6 +19,22 @@ if ($jdkFound) {
 $env:ANDROID_SDK_ROOT = "$env:LOCALAPPDATA\Android\Sdk"
 $env:ANDROID_HOME = $env:ANDROID_SDK_ROOT
 
+# Step 0: Auto-Sync Version from version.json (Single Source of Truth)
+if (Test-Path "$PROJECT_ROOT\version.json") {
+    $verJson = Get-Content "$PROJECT_ROOT\version.json" -Raw | ConvertFrom-Json
+    $vName = $verJson.version
+    $vCode = $verJson.build
+    Write-Host "Syncing Version: $vName (Build $vCode) from version.json..." -ForegroundColor Cyan
+
+    $gradlePath = "$PROJECT_ROOT\android\app\build.gradle"
+    if (Test-Path $gradlePath) {
+        $gText = Get-Content $gradlePath -Raw
+        $gText = $gText -replace 'versionCode \d+', "versionCode $vCode"
+        $gText = $gText -replace 'versionName "[^"]+"', "versionName `"$vName`""
+        Set-Content -Path $gradlePath -Value $gText -NoNewline
+    }
+}
+
 Write-Host 'Step 1: Building web assets with Vite...' -ForegroundColor Cyan
 Push-Location $PROJECT_ROOT
 npm run build

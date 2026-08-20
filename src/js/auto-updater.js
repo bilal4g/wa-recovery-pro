@@ -8,9 +8,10 @@
  */
 
 import { showToast } from './ui-components.js';
+import versionData from '../../version.json';
 
-const CURRENT_VERSION = '1.6.0';
-const CURRENT_BUILD = 13;
+const CURRENT_VERSION = versionData.version || '1.6.0';
+const CURRENT_BUILD = versionData.build || 13;
 const GITHUB_REPO = 'bilal4g/wa-recovery-pro';
 const MANIFEST_URL = 'https://raw.githubusercontent.com/' + GITHUB_REPO + '/main/version.json';
 
