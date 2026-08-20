@@ -78,6 +78,16 @@ class RecoveryDatabase {
 
   async addMessage(message) {
     await this._ready;
+    const existing = await this._getAll('messages');
+    const isDup = existing.some(m =>
+      m.contact === message.contact &&
+      m.text === message.text &&
+      Math.abs((m.timestamp || 0) - (message.timestamp || 0)) < 5000
+    );
+    if (isDup) return null;
+
+    const photoSrc = message.mediaThumbnail || message.mediaUrl || message.thumbnailBase64 || null;
+
     const msg = {
       contact: message.contact || 'Unknown',
       text: message.text || '',
@@ -85,12 +95,25 @@ class RecoveryDatabase {
       isDeleted: message.isDeleted || false,
       isViewOnce: message.isViewOnce || false,
       type: message.type || 'text', // text, image, video, voice, document, sticker
-      mediaUrl: message.mediaUrl || null,
-      mediaThumbnail: message.mediaThumbnail || null,
+      mediaUrl: photoSrc,
+      mediaThumbnail: photoSrc,
+      thumbnailBase64: message.thumbnailBase64 || null,
       direction: message.direction || 'received', // sent, received
       groupName: message.groupName || null,
       raw: message.raw || null
     };
+
+    if (photoSrc && (msg.type === 'image' || msg.isViewOnce)) {
+      await this.addMedia({
+        contact: msg.contact,
+        mediaType: 'image',
+        url: photoSrc,
+        thumbnail: photoSrc,
+        timestamp: msg.timestamp,
+        isDeleted: msg.isDeleted
+      });
+    }
+
     return this._add('messages', msg);
   }
 
@@ -169,6 +192,14 @@ class RecoveryDatabase {
 
   async addMedia(media) {
     await this._ready;
+    const existing = await this._getAll('media');
+    const isDup = existing.some(m =>
+      m.contact === media.contact &&
+      (m.url === media.url || m.thumbnail === media.thumbnail) &&
+      Math.abs((m.timestamp || 0) - (media.timestamp || 0)) < 5000
+    );
+    if (isDup) return null;
+
     const item = {
       contact: media.contact || 'Unknown',
       mediaType: media.mediaType || 'image', // image, video, document, sticker, gif

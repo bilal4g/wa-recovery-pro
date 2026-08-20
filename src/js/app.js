@@ -123,7 +123,9 @@ class WARecoveryApp {
               direction: m.direction || 'received',
               groupName: m.group_name,
               isViewOnce: !!m.is_view_once,
-              thumbnailBase64: m.thumbnail_base64
+              thumbnailBase64: m.thumbnail || m.thumbnail_base64 || m.media_url,
+              mediaThumbnail: m.thumbnail || m.thumbnail_base64 || m.media_url,
+              mediaUrl: m.media_url || m.thumbnail
             });
           }
         }
@@ -137,6 +139,30 @@ class WARecoveryApp {
     else if (this.currentPage === 'messages') await this.loadMessages();
     else if (this.currentPage === 'media') await this.loadMediaGrid();
     else if (this.currentPage === 'voice') await this.loadVoiceNotes();
+  }
+
+  openDirectImage(src, contact = 'Recovered Photo') {
+    if (!src) return;
+    const lightbox = document.getElementById('media-lightbox');
+    const image = document.getElementById('lightbox-image');
+    const video = document.getElementById('lightbox-video');
+    const sender = document.getElementById('lightbox-sender');
+    const date = document.getElementById('lightbox-date');
+
+    if (!lightbox || !image) return;
+
+    if (video) {
+      video.style.display = 'none';
+      video.pause();
+    }
+    image.style.display = 'block';
+    image.src = src;
+    if (sender) sender.textContent = contact;
+    if (date) date.textContent = 'Recovered Photo';
+
+    mediaManager._currentMedia = { url: src, contact: contact, filename: `wa_photo_${Date.now()}.jpg` };
+    lightbox.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
   }
 
   // =============================================

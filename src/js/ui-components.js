@@ -138,20 +138,38 @@ export function renderMessageBubble(message) {
 
   let content = '';
   
-  if (message.mediaThumbnail || message.mediaUrl) {
-    if (message.type === 'image' || message.type === 'sticker') {
-      content += `<img class="message-media" src="${message.mediaThumbnail || message.mediaUrl}" alt="Media">`;
+  const photoSrc = message.mediaThumbnail || message.mediaUrl || message.thumbnailBase64 || message.raw;
+  if (photoSrc) {
+    if (message.type === 'image' || message.type === 'sticker' || message.isViewOnce) {
+      content += `
+        <div class="message-media-container" onclick="window.WAApp?.openDirectImage('${escapeHtml(photoSrc)}', '${escapeHtml(message.contact)}')" style="cursor:pointer;position:relative;margin-bottom:6px;border-radius:10px;overflow:hidden;">
+          <img class="message-media" src="${photoSrc}" alt="Photo" style="display:block;max-width:100%;border-radius:8px;max-height:260px;object-fit:cover;">
+          <div style="font-size:11px;color:var(--green-primary);margin-top:4px;display:flex;align-items:center;gap:4px;font-weight:600;">
+            <span class="material-icons-round" style="font-size:15px;">visibility</span> Tap to view full photo
+          </div>
+        </div>
+      `;
     } else if (message.type === 'video') {
-      content += `<div style="position:relative;display:inline-block;width:100%;">
-        <img class="message-media" src="${message.mediaThumbnail || ''}" alt="Video">
-        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:40px;height:40px;background:rgba(0,0,0,0.5);border-radius:50%;display:flex;align-items:center;justify-content:center;">
-          <span class="material-icons-round" style="color:white;font-size:24px;">play_arrow</span>
+      content += `<div style="position:relative;display:inline-block;width:100%;cursor:pointer;" onclick="window.WAApp?.openDirectImage('${escapeHtml(photoSrc)}', '${escapeHtml(message.contact)}')">
+        <img class="message-media" src="${photoSrc}" alt="Video" style="display:block;max-width:100%;border-radius:8px;">
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:44px;height:44px;background:rgba(0,0,0,0.6);border-radius:50%;display:flex;align-items:center;justify-content:center;">
+          <span class="material-icons-round" style="color:white;font-size:26px;">play_arrow</span>
         </div>
       </div>`;
     }
+  } else if (message.type === 'image' || message.isViewOnce) {
+    content += `
+      <div class="message-photo-card" onclick="window.WAApp?.navigateTo('media')" style="cursor:pointer;padding:10px 12px;background:rgba(255,255,255,0.06);border-radius:10px;margin-bottom:6px;display:flex;align-items:center;gap:10px;">
+        <span class="material-icons-round" style="font-size:28px;color:var(--accent-purple);">photo_camera</span>
+        <div>
+          <div style="font-weight:600;font-size:13px;">${message.isViewOnce ? 'View-Once Photo' : 'Photo Message'}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Tap to check Media Gallery</div>
+        </div>
+      </div>
+    `;
   }
 
-  if (message.text) {
+  if (message.text && message.text !== '📷 Photo' && message.text !== 'photo') {
     content += `<div>${escapeHtml(message.text)}</div>`;
   }
 

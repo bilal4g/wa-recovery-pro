@@ -89,17 +89,26 @@ public class NotificationListener extends NotificationListenerService {
             // Check for view-once (WhatsApp marks these differently in notification)
             boolean isViewOnce = isViewOnceMessage(extras, text);
 
-            // Extract thumbnail if available
+            // Extract thumbnail/photo if available from all Android notification channels
+            Bitmap picture = extractBitmap(notification, extras);
             String thumbnailBase64 = null;
-            Bitmap largeIcon = null;
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                android.graphics.drawable.Icon icon = notification.getLargeIcon();
-                // Note: extracting bitmap from Icon requires additional handling
-            }
-            // Try extras for picture
-            Bitmap picture = extras.getParcelable(Notification.EXTRA_PICTURE);
             if (picture != null) {
                 thumbnailBase64 = bitmapToBase64(picture);
+            }
+
+            // If it's a photo or view-once with image data, also register in Media gallery
+            if (thumbnailBase64 != null && ("image".equals(type) || isViewOnce)) {
+                dbHelper.insertMedia(
+                        contact,
+                        "image",
+                        thumbnailBase64,
+                        "wa_photo_" + timestamp + ".jpg",
+                        0,
+                        "image/jpeg",
+                        thumbnailBase64,
+                        timestamp,
+                        false
+                );
             }
 
             // Store in database
@@ -112,7 +121,7 @@ public class NotificationListener extends NotificationListenerService {
                     groupName,
                     false,  // not deleted yet
                     isViewOnce,
-                    null,   // mediaUrl
+                    thumbnailBase64,   // mediaUrl
                     thumbnailBase64,
                     key     // notification key for tracking deletions
             );
@@ -184,6 +193,38 @@ public class NotificationListener extends NotificationListenerService {
         // and the notification typically just says "photo" or "video" without preview
         return lower.equals("photo") || lower.equals("video") ||
                lower.contains("view once") || lower.contains("📷") && lower.length() < 10;
+    }
+
+    private Bitmap extractBitmap(Notification notification, Bundle extras) {
+        try {
+            if (extras != null) {
+                Bitmap pic = extras.getParcelable(Notification.EXTRA_PICTURE);
+                if (pic != null) return pic;
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    Object picIcon = extras.get(Notification.EXTRA_PICTURE_ICON);
+                    if (picIcon instanceof android.graphics.drawable.Icon) {
+                        android.graphics.drawable.Drawable drawable = ((android.graphics.drawable.Icon) picIcon).loadDrawable(this);
+                        if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+                            return ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+                        }
+                    }
+                }
+
+                Bitmap large = extras.getParcelable(Notification.EXTRA_LARGE_ICON);
+                if (large != null) return large;
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && notification.getLargeIcon() != null) {
+                android.graphics.drawable.Drawable drawable = notification.getLargeIcon().loadDrawable(this);
+                if (drawable instanceof android.graphics.drawable.BitmapDrawable) {
+                    return ((android.graphics.drawable.BitmapDrawable) drawable).getBitmap();
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error extracting bitmap", e);
+        }
+        return null;
     }
 
     private String bitmapToBase64(Bitmap bitmap) {
