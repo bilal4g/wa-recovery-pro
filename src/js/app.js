@@ -184,14 +184,20 @@ class WARecoveryApp {
 
   showOnboarding() {
     const modal = document.getElementById('onboarding-modal');
-    if (modal) modal.classList.remove('hidden');
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+    }
     this._checkPermissionsStatus();
     this._startPermPolling();
   }
 
   hideOnboarding() {
     const modal = document.getElementById('onboarding-modal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+    }
     this._stopPermPolling();
   }
 
