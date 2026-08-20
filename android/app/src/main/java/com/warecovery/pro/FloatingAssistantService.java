@@ -63,6 +63,7 @@ public class FloatingAssistantService extends Service {
     public static boolean isRunning = false;
     public static final String ACTION_START = "START_FLOATING_ASSISTANT";
     public static final String ACTION_STOP = "STOP_FLOATING_ASSISTANT";
+    public static final String ACTION_MEDIA_PROJECTION = "MEDIA_PROJECTION_GRANTED";
 
     private WindowManager windowManager;
     private View floatingView;
@@ -116,6 +117,16 @@ public class FloatingAssistantService extends Service {
         if (intent != null && ACTION_STOP.equals(intent.getAction())) {
             stopSelf();
             return START_NOT_STICKY;
+        }
+
+        if (intent != null && ACTION_MEDIA_PROJECTION.equals(intent.getAction())) {
+            int resCode = intent.getIntExtra("resultCode", -1);
+            Intent data = intent.getParcelableExtra("data");
+            String act = intent.getStringExtra("action");
+            if (resCode == -1 && data != null) {
+                onMediaProjectionGranted(resCode, data, act);
+            }
+            return START_STICKY;
         }
 
         try {

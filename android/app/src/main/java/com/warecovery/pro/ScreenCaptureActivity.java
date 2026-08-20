@@ -31,6 +31,7 @@ public class ScreenCaptureActivity extends Activity {
         if (mgr != null) {
             startActivityForResult(mgr.createScreenCaptureIntent(), REQUEST_CODE_CAPTURE);
         } else {
+            Log.e(TAG, "MediaProjectionManager not available");
             finish();
         }
     }
@@ -39,9 +40,22 @@ public class ScreenCaptureActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == REQUEST_CODE_CAPTURE && resultCode == RESULT_OK && data != null) {
+            Log.i(TAG, "MediaProjection permission granted for action: " + pendingAction);
+
             FloatingAssistantService service = FloatingAssistantService.getInstance();
             if (service != null) {
                 service.onMediaProjectionGranted(resultCode, data, pendingAction);
+            } else {
+                Intent serviceIntent = new Intent(this, FloatingAssistantService.class);
+                serviceIntent.setAction(FloatingAssistantService.ACTION_MEDIA_PROJECTION);
+                serviceIntent.putExtra("resultCode", resultCode);
+                serviceIntent.putExtra("data", data);
+                serviceIntent.putExtra("action", pendingAction);
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
             }
         }
         finish();
