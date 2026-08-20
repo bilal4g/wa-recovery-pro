@@ -809,13 +809,28 @@ public class FloatingAssistantService extends Service {
             stopVideoRecording();
         } else {
             if (menuCard != null) menuCard.setVisibility(View.GONE);
-            if (mediaProjection == null) {
+
+            // Try to reuse existing or saved MediaProjection token first
+            if (mediaProjection == null && projData != null) {
+                try {
+                    MediaProjectionManager mgr = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
+                    if (mgr != null) {
+                        mediaProjection = mgr.getMediaProjection(projResultCode, (Intent) projData.clone());
+                    }
+                } catch (Exception e) {
+                    Log.w(TAG, "Could not reuse saved projection token", e);
+                    mediaProjection = null;
+                }
+            }
+
+            if (mediaProjection != null) {
+                startRealVideoRecording();
+            } else {
+                // Only prompt share screen if we have no token at all
                 Intent intent = new Intent(this, ScreenCaptureActivity.class);
                 intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 startActivity(intent);
-            } else {
-                startRealVideoRecording();
             }
         }
     }
@@ -1106,13 +1121,42 @@ public class FloatingAssistantService extends Service {
                 long timestamp = System.currentTimeMillis();
                 File aFile = new File(currentAudioPath);
 
-                // 1. Insert into Voice Notes Table
-                dbHelper.insertVoiceNote("Captured Voice", currentAudioPath, (int) durationSec, timestamp, true);
+                // 0. Save a public copy to Music/WARecovery so sharing works
+                String publicAudioPath = currentAudioPath;
+                try {
+                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC), "WARecovery");
+                    if (!pubDir.exists()) pubDir.mkdirs();
+                    File pubFile = new File(pubDir, "wa_voice_" + timestamp + ".m4a");
+
+                    InputStream in = new FileInputStream(aFile);
+                    OutputStream out = new FileOutputStream(pubFile);
+                    byte[] buf = new byte[8192];
+                    int len;
+                    while ((len = in.read(buf)) > 0) {
+                        out.write(buf, 0, len);
+                    }
+                    in.close();
+                    out.close();
+
+                    android.media.MediaScannerConnection.scanFile(
+                            this,
+                            new String[]{pubFile.getAbsolutePath()},
+                            new String[]{"audio/mp4"},
+                            null
+                    );
+                    publicAudioPath = pubFile.getAbsolutePath();
+                    Log.i(TAG, "Copied voice to public gallery: " + publicAudioPath);
+                } catch (Exception copyErr) {
+                    Log.w(TAG, "Could not copy voice to public dir", copyErr);
+                }
+
+                // 1. Insert into Voice Notes Table (use public path for sharing)
+                dbHelper.insertVoiceNote("Captured Voice", publicAudioPath, (int) durationSec, timestamp, true);
 
                 // 2. Insert into Messages Table
                 dbHelper.insertMessage(
                         "Captured Voice",
-                        "🎙️ View-Once Voice Note (" + durationSec + "s)",
+                        "\uD83C\uDFA4 View-Once Voice Note (" + durationSec + "s)",
                         "voice",
                         timestamp,
                         "received",
@@ -1120,7 +1164,7 @@ public class FloatingAssistantService extends Service {
                         false,
                         true,
                         null,
-                        currentAudioPath,
+                        publicAudioPath,
                         "voice_" + timestamp
                 );
 
@@ -1132,12 +1176,12 @@ public class FloatingAssistantService extends Service {
                 }
 
                 triggerHapticFeedback();
-                showMediaSavedNotification("🎙️ View-Once Voice Note Saved!", "Duration: " + durationSec + "s · Tap to play", aFile, "audio/mp4");
+                showMediaSavedNotification("\uD83C\uDFA4 View-Once Voice Note Saved!", "Duration: " + durationSec + "s · Tap to play", new File(publicAudioPath), "audio/mp4");
 
                 new Handler(Looper.getMainLooper()).post(() -> {
-                    Toast.makeText(FloatingAssistantService.this, "✅ Voice note captured & saved!", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(FloatingAssistantService.this, "✅ Voice note captured & saved to Music!", Toast.LENGTH_SHORT).show();
                 });
-                Log.i(TAG, "Successfully captured audio to: " + currentAudioPath);
+                Log.i(TAG, "Successfully captured audio to: " + publicAudioPath);
             }
 
         } catch (Exception e) {

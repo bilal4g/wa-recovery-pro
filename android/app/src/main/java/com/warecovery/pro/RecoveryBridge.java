@@ -463,20 +463,15 @@ public class RecoveryBridge extends Plugin {
             android.media.AudioManager audioManager = (android.media.AudioManager) getContext().getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
                 audioManager.setMode(android.media.AudioManager.MODE_NORMAL);
-                audioManager.setSpeakerphoneOn(true);
             }
 
             mediaPlayer = new android.media.MediaPlayer();
             mediaPlayer.setDataSource(path);
-            mediaPlayer.setAudioStreamType(android.media.AudioManager.STREAM_MUSIC);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
-                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                        .setLegacyStreamType(android.media.AudioManager.STREAM_MUSIC)
-                        .build();
-                mediaPlayer.setAudioAttributes(attrs);
-            }
+            android.media.AudioAttributes attrs = new android.media.AudioAttributes.Builder()
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .build();
+            mediaPlayer.setAudioAttributes(attrs);
             mediaPlayer.setVolume(1.0f, 1.0f);
             mediaPlayer.prepare();
 

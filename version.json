@@ -1,12 +1,13 @@
 {
-  "version": "1.9.3",
-  "build": 31,
+  "version": "1.9.4",
+  "build": 32,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.9.3 — Main Loudspeaker Audio Routing & Auto-Stop Waveform",
+  "title": "WA Recovery Pro v1.9.4 — Real Voice Audio Sharing & 1-Prompt Video Recording",
   "changelog": [
-    "🔊 Loudspeaker Routing (مكبر الصوت): Explicitly routed voice playback to STREAM_MUSIC main external speaker",
-    "⏹️ Auto-Stop on Completion (إيقاف تلقائي): Waveform animation and pause button cleanly stop immediately when audio ends",
-    "⏱️ Exact Real Duration: Dynamically calculates and displays the exact physical recording time"
+    "🔊 Real Voice Sharing: Recorded voice notes are now saved to Music/WARecovery and shared as real .m4a audio files with full sound",
+    "🎥 1-Prompt Video Recording: MediaProjection token is reused automatically, share screen prompt appears only once per session",
+    "📤 Real Audio Export: Export button now shares the actual audio file instead of a dummy placeholder",
+    "🎙️ Correct Path Resolution: All share/forward/export functions resolve filePath > voicePath > audioUrl chain"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

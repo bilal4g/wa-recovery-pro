@@ -121,7 +121,7 @@ class VoiceOptionsManager {
 
     if (nameEl) nameEl.textContent = voice.contact || 'Unknown';
     if (metaEl) {
-      const duration = formatDuration(voice.duration || 12);
+      const duration = formatDuration(voice.duration || 0);
       const time = formatTime(voice.timestamp || Date.now());
       metaEl.textContent = `${duration} · ${time}`;
     }
@@ -191,7 +191,7 @@ class VoiceOptionsManager {
   async shareSystem() {
     if (!this.currentVoice) return;
 
-    const audioPath = this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const audioPath = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
     const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
 
     if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
@@ -239,7 +239,7 @@ class VoiceOptionsManager {
   async shareToWhatsApp() {
     if (!this.currentVoice) return;
 
-    const audioPath = this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const audioPath = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
     const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
 
     if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
@@ -266,25 +266,27 @@ class VoiceOptionsManager {
   /**
    * Export audio file to storage.
    */
-  exportAudioFile() {
+  async exportAudioFile() {
     if (!this.currentVoice) return;
 
-    // Create a mock/real audio blob for download
-    const filename = `voice_${this.currentVoice.contact.replace(/\s+/g, '_')}_${Date.now()}.opus`;
-    
-    // Create an audio blob
-    const dummyAudioContent = new Blob(["OggS...WA_RECOVERY_PRO_VOICE_NOTE_AUDIO"], { type: 'audio/ogg' });
-    const url = URL.createObjectURL(dummyAudioContent);
-    
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const audioPath = this.currentVoice.filePath || this.currentVoice.voicePath || this.currentVoice.audioUrl || this.currentVoice.url || this.currentVoice.path;
+    const bridge = window.WAApp?.bridge || window.Capacitor?.Plugins?.RecoveryBridge;
 
-    showToast(`Saved audio to Downloads (${filename})`, 'success');
+    if (bridge && audioPath && audioPath !== 'null' && audioPath !== 'undefined') {
+      try {
+        await bridge.shareMedia({
+          path: audioPath,
+          mimeType: 'audio/mp4',
+          title: `Save Voice Note from ${this.currentVoice.contact}`
+        });
+        showToast('Audio file exported', 'success');
+        return;
+      } catch (e) {
+        console.log('Export fallback:', e);
+      }
+    }
+
+    showToast('Audio file not available for export', 'info');
   }
 
   /**
