@@ -998,13 +998,13 @@ class WARecoveryApp {
     document.querySelectorAll('.wave-bar').forEach(b => b.classList.remove('active'));
 
     const voiceItem = document.querySelector(`[data-voice-id="${voiceId}"]`);
-    let audioSrc = voiceItem ? voiceItem.dataset.audioUrl : null;
+    let audioSrc = voiceItem ? (voiceItem.dataset.audioUrl || voiceItem.closest('.voice-item')?.dataset.audioUrl) : null;
 
-    if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined') {
+    if (!audioSrc || audioSrc === 'null' || audioSrc === 'undefined' || audioSrc === '') {
       const allNotes = await db.getVoiceNotes();
       const note = allNotes.find(v => String(v.id) === String(voiceId));
       if (note) {
-        audioSrc = note.audioUrl || note.url || note.path;
+        audioSrc = note.audioUrl || note.url || note.path || note.filePath;
       }
     }
 
@@ -1022,16 +1022,20 @@ class WARecoveryApp {
     // 1. Play with native hardware audio player on Android
     if (this.bridge && window.Capacitor?.isNativePlatform()) {
       try {
-        await this.bridge.playVoiceNote({ path: audioSrc, speed: speed });
+        const numId = parseInt(voiceId);
+        await this.bridge.playVoiceNote({ path: audioSrc, id: isNaN(numId) ? null : numId, speed: speed });
         this.audioPlayers[voiceId] = {
           pause: async () => {
             clearInterval(animInterval);
+            if (icon) icon.textContent = 'play_arrow';
+            bars.forEach(b => b.classList.remove('active'));
             try { await this.bridge.stopVoiceNote(); } catch (e) {}
+            delete this.audioPlayers[voiceId];
           }
         };
         return;
       } catch (err) {
-        console.log('Native player fallback:', err);
+        console.log('Native player error:', err);
       }
     }
 

@@ -209,9 +209,10 @@ export function renderMessageBubble(message) {
 function renderInlineVoicePlayer(message) {
   const duration = message.duration || 12;
   const bars = generateWaveformBars(message.waveform || [], 20);
+  const audioPath = message.filePath || message.mediaUrl || message.audioUrl || message.url || '';
   
   return `
-    <div class="voice-player" data-voice-id="${message.id}">
+    <div class="voice-player" data-voice-id="${message.id}" data-audio-url="${escapeHtml(audioPath)}">
       <button class="voice-play-btn" onclick="window.WAApp?.playVoice('${message.id}')" aria-label="Play">
         <span class="material-icons-round">play_arrow</span>
       </button>
@@ -231,7 +232,7 @@ export function renderVoiceItem(voice) {
   const duration = formatDuration(voice.duration || 14);
   const bars = generateWaveformBars(voice.waveform || [], 32);
 
-  const audioPath = voice.audioUrl || voice.url || voice.path || '';
+  const audioPath = voice.audioUrl || voice.url || voice.path || voice.filePath || '';
 
   return `
     <div class="voice-item selectable-item" data-voice-id="${voice.id}" data-id="${voice.id}" data-audio-url="${escapeHtml(audioPath)}">
@@ -250,7 +251,7 @@ export function renderVoiceItem(voice) {
         </div>
       </div>
       
-      <div class="voice-player" data-voice-id="${voice.id}">
+      <div class="voice-player" data-voice-id="${voice.id}" data-audio-url="${escapeHtml(audioPath)}">
         <button class="voice-play-btn" onclick="window.WAApp?.playVoice('${voice.id}')" aria-label="Play Voice">
           <span class="material-icons-round">play_arrow</span>
         </button>

@@ -384,6 +384,7 @@ public class RecoveryBridge extends Plugin {
     @PluginMethod()
     public void playVoiceNote(PluginCall call) {
         String path = call.getString("path");
+        Long id = call.getLong("id");
         Double speed = call.getDouble("speed", 1.0);
 
         try {
@@ -393,18 +394,23 @@ public class RecoveryBridge extends Plugin {
             }
 
             if (path != null) {
-                path = path.replace("file://", "");
+                path = path.replace("file://", "").trim();
             }
 
-            if (path == null || path.isEmpty() || !new File(path).exists()) {
-                List<File> backups = voiceExtractor.getBackedUpVoiceNotes();
-                if (!backups.isEmpty()) {
-                    path = backups.get(backups.size() - 1).getAbsolutePath();
+            // If path is missing or invalid, lookup by ID in database
+            if ((path == null || path.isEmpty() || !new File(path).exists()) && id != null) {
+                JSONArray notes = dbHelper.getVoiceNotesAsJSON();
+                for (int i = 0; i < notes.length(); i++) {
+                    JSONObject note = notes.getJSONObject(i);
+                    if (note.optLong("id") == id) {
+                        path = note.optString("filePath");
+                        break;
+                    }
                 }
             }
 
-            if (path == null || !new File(path).exists()) {
-                call.reject("Voice audio file not found: " + path);
+            if (path == null || path.isEmpty() || !new File(path).exists()) {
+                call.reject("Voice audio file not found on device");
                 return;
             }
 

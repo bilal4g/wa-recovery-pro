@@ -213,14 +213,16 @@ public class MediaScanner {
             String backupPath = backupFile(file);
             if (backupPath == null) return;
 
-            // If voice audio note, save to Voice table
+            // If voice audio note, save to Voice table ONLY
             if ("voice".equals(mediaType) || "audio".equals(mediaType)) {
                 int duration = getAudioDuration(file);
                 dbHelper.insertVoiceNote("Voice Note", backupPath, duration, file.lastModified(), false);
                 dbHelper.updateLatestMessageVoiceAudio(null, backupPath);
+                Log.i(TAG, "✅ [Voice Captured] Saved voice note: " + file.getName());
+                return;
             }
 
-            // Also register in general media table
+            // Only register real photos, videos, stickers, docs in media table
             dbHelper.insertMedia(
                     null,
                     mediaType,

@@ -268,10 +268,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public long insertMedia(String contact, String mediaType, String filePath,
                             String fileName, long fileSize, String mimeType,
                             String thumbnail, long timestamp, boolean isDeleted) {
+        if ("voice".equalsIgnoreCase(mediaType) || "audio".equalsIgnoreCase(mediaType)) {
+            return -1; // Voice notes belong exclusively in TABLE_VOICE_NOTES
+        }
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COL_CONTACT, contact);
-        values.put(COL_MEDIA_TYPE, mediaType);
+        values.put(COL_MEDIA_TYPE, mediaType != null ? mediaType : "image");
         values.put(COL_FILE_PATH, filePath);
         values.put(COL_FILE_NAME, fileName);
         values.put(COL_FILE_SIZE, fileSize);
@@ -284,12 +287,15 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     public JSONArray getMediaAsJSON(String type) throws JSONException {
         SQLiteDatabase db = getReadableDatabase();
-        String selection = null;
-        String[] selectionArgs = null;
+        String selection;
+        String[] selectionArgs;
 
         if (type != null && !type.equals("all") && !type.isEmpty()) {
             selection = COL_MEDIA_TYPE + " = ?";
             selectionArgs = new String[]{type};
+        } else {
+            selection = COL_MEDIA_TYPE + " NOT IN ('voice', 'audio')";
+            selectionArgs = null;
         }
 
         Cursor cursor = db.query(TABLE_MEDIA, null, selection, selectionArgs,

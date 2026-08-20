@@ -1,13 +1,13 @@
 {
-  "version": "1.8.2",
-  "build": 23,
+  "version": "1.8.3",
+  "build": 24,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.8.2 — Instant Screenshot Preview Notification & Haptic Feedback",
+  "title": "WA Recovery Pro v1.8.3 — Exact Audio Track Playback & Clean Media Separation",
   "changelog": [
-    "🔔 Rich Screenshot Notification: Instant status bar alert with large picture preview, 1-tap Share and View in App",
-    "📳 Haptic Vibration: Crisp physical vibration feedback confirms the exact moment of capture",
-    "🎥 Screen Video & Voice Notifications: Heads-up alerts upon finishing video and view-once audio recordings",
-    "🚀 Persistent 0-Prompt Mirror: Take unlimited screenshots with zero repeat prompts"
+    "🎵 Exact Audio Playback: Fixed voice note playback engine to resolve the exact recorded file without playing repeat tracks",
+    "🖼️ Clean Gallery Separation: Voice captures now strictly go to the Voice tab (0 empty/black boxes in Photos/Videos)",
+    "🔔 Rich Screenshot Notification: Instant status bar alert with picture preview & 1-tap Share",
+    "📳 Haptic Vibration: Instant physical confirmation upon capture"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
