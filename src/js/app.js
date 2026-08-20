@@ -1003,7 +1003,17 @@ class WARecoveryApp {
 
     const versionLabel = document.getElementById('app-version-label');
     if (versionLabel) {
-      versionLabel.textContent = `${autoUpdater.currentVersion} (Build ${autoUpdater.currentBuild || 8})`;
+      versionLabel.textContent = `${autoUpdater.currentVersion} (Build ${autoUpdater.currentBuild || 10})`;
+    }
+
+    const versionHeader = document.getElementById('settings-version-header') || document.querySelector('.settings-version');
+    if (versionHeader) {
+      versionHeader.textContent = `Version ${autoUpdater.currentVersion} (Build ${autoUpdater.currentBuild || 10})`;
+    }
+
+    const versionBadge = document.getElementById('settings-version-badge');
+    if (versionBadge) {
+      versionBadge.textContent = `v${autoUpdater.currentVersion}`;
     }
   }
 
