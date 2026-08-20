@@ -32,12 +32,10 @@ public class VoiceExtractor {
             "/WhatsApp Business/Media/WhatsApp Business Audio"
     };
 
-    private final android.content.Context context;
     private final DatabaseHelper dbHelper;
     private final String backupDir;
 
     public VoiceExtractor(android.content.Context context) {
-        this.context = context;
         this.dbHelper = DatabaseHelper.getInstance(context);
 
         File backupFile = new File(context.getFilesDir(), "voice_backup");
@@ -139,7 +137,11 @@ public class VoiceExtractor {
         } catch (Exception ignored) {
         } finally {
             try {
-                retriever.release();
+                if (android.os.Build.VERSION.SDK_INT >= 29) {
+                    retriever.close();
+                } else {
+                    retriever.release();
+                }
             } catch (Exception ignored) {}
         }
         return 0;

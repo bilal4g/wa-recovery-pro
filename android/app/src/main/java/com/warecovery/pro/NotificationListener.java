@@ -243,6 +243,7 @@ public class NotificationListener extends NotificationListenerService {
                lower.contains("view once") || lower.contains("عرض لمرة واحدة");
     }
 
+    @SuppressWarnings("deprecation")
     private Bitmap extractBitmap(Notification notification, Bundle extras) {
         try {
             if (extras != null) {

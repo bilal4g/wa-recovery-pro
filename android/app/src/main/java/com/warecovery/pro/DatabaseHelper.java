@@ -11,9 +11,6 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  * SQLite database helper for storing recovered messages, media, voice notes, and view-once captures.
  */
