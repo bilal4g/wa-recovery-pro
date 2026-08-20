@@ -1,14 +1,14 @@
 {
-  "version": "1.4.0",
-  "build": 10,
+  "version": "1.4.1",
+  "build": 11,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v1.4.0 — Major Release!",
+  "title": "WA Recovery Pro v1.4.1 — Instant Deletion & Voice Fixes!",
   "changelog": [
-    "🔊 Real Voice Note Audio Recovery (.opus Hardware Sound Output)",
-    "🖼️ Translucent Glassmorphic Wallpaper Theme (bg.jpeg)",
-    "📲 Direct In-App APK Replacing Auto-Installer",
-    "📷 1-Tap Full-Screen Photo Lightbox Viewer",
-    "🛡️ 100% Zero-Duplicate Message Engine"
+    "🔥 Multilingual 'This message was deleted' / 'تم حذف هذه الرسالة' Instant Detection",
+    "🎙️ Automatic .opus WhatsApp Voice Audio Extraction & Pairing",
+    "🎧 Native Android MediaPlayer Hardware Audio Playback with 1x-2x Speed",
+    "🖼️ View-Once Photo High-Res Capture Engine",
+    "✨ Fixed Permissions Menu & Settings Badges"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",
