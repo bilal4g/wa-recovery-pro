@@ -819,11 +819,14 @@ public class RecoveryBridge extends Plugin {
 
         try {
             Context ctx = getContext();
-            Uri contentUri = androidx.core.content.FileProvider.getUriForFile(
-                    ctx,
-                    ctx.getPackageName() + ".fileprovider",
-                    file
-            );
+            Uri contentUri;
+            try {
+                Class<?> fpClass = Class.forName("androidx.core.content.FileProvider");
+                java.lang.reflect.Method getUri = fpClass.getMethod("getUriForFile", Context.class, String.class, File.class);
+                contentUri = (Uri) getUri.invoke(null, ctx, ctx.getPackageName() + ".fileprovider", file);
+            } catch (Exception e) {
+                contentUri = Uri.fromFile(file);
+            }
 
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
             shareIntent.setType(mimeType);

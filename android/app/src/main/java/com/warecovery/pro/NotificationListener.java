@@ -18,6 +18,7 @@ import java.io.ByteArrayOutputStream;
  * - Voice notes (.opus audio extraction and hardware playback pairing)
  * - View-Once photos and normal media
  */
+@SuppressWarnings("deprecation")
 public class NotificationListener extends NotificationListenerService {
 
     private static final String TAG = "WARecovery_NL";
@@ -88,10 +89,7 @@ public class NotificationListener extends NotificationListenerService {
             // When multiple messages arrive, WhatsApp bundles them into 'android.messages'
             android.os.Parcelable[] messagesArray = null;
             if (extras.containsKey("android.messages")) {
-                Object rawMsgs = extras.get("android.messages");
-                if (rawMsgs instanceof android.os.Parcelable[]) {
-                    messagesArray = (android.os.Parcelable[]) rawMsgs;
-                }
+                messagesArray = extras.getParcelableArray("android.messages");
             }
 
             // Check for group message
@@ -111,7 +109,12 @@ public class NotificationListener extends NotificationListenerService {
                         long bTime = msgBundle.getLong("time", timestamp);
                         String sender = contact;
 
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && msgBundle.containsKey("sender_person")) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && msgBundle.containsKey("sender_person")) {
+                            android.app.Person person = msgBundle.getParcelable("sender_person", android.app.Person.class);
+                            if (person != null && person.getName() != null) {
+                                sender = person.getName().toString();
+                            }
+                        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && msgBundle.containsKey("sender_person")) {
                             android.app.Person person = msgBundle.getParcelable("sender_person");
                             if (person != null && person.getName() != null) {
                                 sender = person.getName().toString();
@@ -359,7 +362,6 @@ public class NotificationListener extends NotificationListenerService {
      * Checks: EXTRA_PICTURE, EXTRA_PICTURE_ICON, EXTRA_LARGE_ICON, MessagingStyle images,
      * WearableExtender backgrounds, and all Bundle keys for any hidden Bitmap data.
      */
-    @SuppressWarnings("deprecation")
     private Bitmap extractBitmap(Notification notification, Bundle extras) {
         Bitmap best = null;
 
