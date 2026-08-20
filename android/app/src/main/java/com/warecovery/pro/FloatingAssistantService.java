@@ -851,9 +851,16 @@ public class FloatingAssistantService extends Service {
             cleanupPersistentMirror();
 
             DisplayMetrics metrics = getResources().getDisplayMetrics();
-            int w = (metrics.widthPixels / 2) * 2;
-            int h = (metrics.heightPixels / 2) * 2;
+            int screenW = metrics.widthPixels;
+            int screenH = metrics.heightPixels;
             int density = metrics.densityDpi;
+
+            // 16-pixel aligned dimensions for hardware H.264 encoder compatibility
+            int w = 720;
+            int h = (int) (((double) screenH / screenW) * w);
+            h = (h / 16) * 16;
+            if (h <= 0) h = 1280;
+            w = (w / 16) * 16;
 
             File dir = new File(getFilesDir(), "media_backup");
             if (!dir.exists()) dir.mkdirs();
@@ -867,7 +874,7 @@ public class FloatingAssistantService extends Service {
             videoRecorder.setOutputFile(currentVideoPath);
             videoRecorder.setVideoSize(w, h);
             videoRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.H264);
-            videoRecorder.setVideoEncodingBitRate(6 * 1024 * 1024);
+            videoRecorder.setVideoEncodingBitRate(3 * 1024 * 1024);
             videoRecorder.setVideoFrameRate(30);
             videoRecorder.prepare();
 
@@ -909,8 +916,11 @@ public class FloatingAssistantService extends Service {
 
         } catch (Exception e) {
             Log.e(TAG, "Error starting video recording", e);
+            new Handler(Looper.getMainLooper()).post(() -> {
+                Toast.makeText(FloatingAssistantService.this, "Could not start video recorder: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            });
             isRecordingVideo = false;
-            // Restore persistent mirror if video failed
+            resetBubbleUI();
             initPersistentScreenMirror();
         }
     }
