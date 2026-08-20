@@ -294,22 +294,9 @@ public class NotificationListener extends NotificationListenerService {
 
     @Override
     public void onNotificationRemoved(StatusBarNotification sbn, RankingMap rankingMap, int reason) {
-        if (!isWhatsAppNotification(sbn)) return;
-
-        if (reason == REASON_APP_CANCEL) {
-            String key = sbn.getKey();
-            dbHelper.markMessageDeleted(key);
-
-            String contact = "Unknown";
-            Bundle extras = sbn.getNotification().extras;
-            if (extras != null) {
-                contact = extras.getString(Notification.EXTRA_TITLE, "Unknown");
-            }
-
-            dbHelper.markLatestMessageDeleted(contact);
-            Log.d(TAG, "Notification cancelled by app — marked deleted for: " + contact);
-            notifyWebLayer("messageDeleted", contact);
-        }
+        // Do NOT mark messages deleted on notification dismissal.
+        // WhatsApp automatically dismisses notifications when the user opens the chat or reads messages.
+        // True message deletion is handled in onNotificationPosted with "This message was deleted" / "تم حذف هذه الرسالة".
     }
 
     // ---- Helpers ----
@@ -321,51 +308,58 @@ public class NotificationListener extends NotificationListenerService {
 
     private boolean isDeletionNotification(String text) {
         if (text == null) return false;
-        String lower = text.toLowerCase().trim();
-        return lower.contains("this message was deleted") ||
-               lower.contains("message was deleted") ||
-               lower.contains("deleted this message") ||
-               lower.contains("تم حذف هذه الرسالة") ||
-               lower.contains("تم مسح هذه الرسالة") ||
-               lower.contains("تم إلغاء إرسال") ||
-               lower.contains("ce message a été supprimé") ||
-               lower.contains("este mensaje fue eliminado") ||
-               lower.contains("diese nachricht wurde gelöscht") ||
-               lower.contains("bu mesaj silindi");
+        String lower = text.toLowerCase().trim().replaceAll("[.!?]+$", "").trim();
+        return lower.equals("this message was deleted") ||
+               lower.equals("message was deleted") ||
+               lower.equals("you deleted this message") ||
+               lower.equals("deleted this message") ||
+               lower.equals("تم حذف هذه الرسالة") ||
+               lower.equals("تم مسح هذه الرسالة") ||
+               lower.equals("تم إلغاء إرسال هذه الرسالة") ||
+               lower.equals("تم إلغاء إرسال") ||
+               lower.equals("ce message a été supprimé") ||
+               lower.equals("este mensaje fue eliminado") ||
+               lower.equals("diese nachricht wurde gelöscht") ||
+               lower.equals("bu mesaj silindi");
     }
 
     private String detectMessageType(Bundle extras, String text) {
         if (text == null) return "text";
 
-        String lower = text.toLowerCase();
+        String lower = text.toLowerCase().trim();
+
+        // 1. If it contains a link (YouTube, Web URL, etc.), it is text/link, NOT a video/media attachment!
+        if (lower.contains("http://") || lower.contains("https://") || lower.contains("youtu.be") || lower.contains("youtube.com")) {
+            return "text";
+        }
+
         // Multilingual Voice Detection
-        if (lower.contains("voice message") || lower.contains("🎤") ||
-            lower.contains("رسالة صوتية") || lower.contains("مقطع صوتي") ||
-            lower.contains("صوتية") || lower.contains("ptt") ||
-            lower.contains("nota de voz") || lower.contains("message vocal")) {
+        if (lower.equals("voice message") || lower.startsWith("🎤") ||
+            lower.equals("رسالة صوتية") || lower.equals("مقطع صوتي") ||
+            lower.contains("ptt") || lower.equals("nota de voz") || lower.equals("message vocal")) {
             return "voice";
         }
-        // Multilingual Media Detection
-        if (lower.contains("photo") || lower.contains("image") || lower.contains("📷") ||
-            lower.contains("صورة") || lower.contains("foto")) {
+        // Multilingual Media Detection (exact keywords or standard notification prefixes)
+        if (lower.equals("photo") || lower.equals("image") || lower.startsWith("📷") ||
+            lower.equals("صورة") || lower.equals("foto")) {
             return "image";
         }
-        if (lower.contains("video") || lower.contains("📹") || lower.contains("فيديو")) {
+        if (lower.equals("video") || lower.startsWith("📹") || lower.equals("فيديو")) {
             return "video";
         }
-        if (lower.contains("document") || lower.contains("📄") || lower.contains("مستند")) {
+        if (lower.equals("document") || lower.startsWith("📄") || lower.equals("مستند")) {
             return "document";
         }
-        if (lower.contains("sticker") || lower.contains("ملصق")) {
+        if (lower.equals("sticker") || lower.equals("ملصق")) {
             return "sticker";
         }
-        if (lower.contains("gif")) {
+        if (lower.equals("gif")) {
             return "gif";
         }
-        if (lower.contains("audio") || lower.contains("🎵") || lower.contains("صوت")) {
+        if (lower.equals("audio") || lower.startsWith("🎵") || lower.equals("صوت")) {
             return "audio";
         }
-        if (lower.contains("location") || lower.contains("📍") || lower.contains("موقع")) {
+        if (lower.equals("location") || lower.startsWith("📍") || lower.equals("موقع") || lower.contains("live location")) {
             return "location";
         }
 
