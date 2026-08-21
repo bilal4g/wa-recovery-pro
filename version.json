@@ -1,13 +1,13 @@
 {
-  "version": "2.0.4",
-  "build": 42,
+  "version": "2.0.5",
+  "build": 43,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.4 — 0-Prompt Seamless Video Recording via VirtualDisplay Surface Swapping",
+  "title": "WA Recovery Pro v2.0.5 — Instant Auto-Popup Updates on App Launch",
   "changelog": [
-    "🎥 0-Prompt Video Recording: Seamless surface swapping between ImageReader & MediaRecorder eliminates repetitive 'Choose app to share' dialogs",
-    "⚡ Instant Capture Switch: Immediate redirection of video stream upon clicking Record Video without interrupting the MediaProjection session",
-    "📸 Continuous Screenshot Capture: Automatically swaps back to ImageReader surface upon stopping video recording",
-    "🛡️ Android 14 Compliance: Conforms to single-session MediaProjection lifecycle standards"
+    "🚀 Auto-Popup Update Window: When a new version is published, the update modal pops up automatically upon opening the app",
+    "⚡ Direct GitHub Sync: Fast cache-busting version check with zero rate limits and instant release detection",
+    "🔢 Version & Build Detection: Automatically detects and notifies about both major versions and patch builds",
+    "🔘 Preserved Manual Check: 'Check for Updates' button in Settings remains available at all times"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

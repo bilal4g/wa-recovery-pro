@@ -82,17 +82,18 @@ class WARecoveryApp {
       // Check onboarding / permission status
       this._checkFirstLaunch();
 
-      // Check for updates after 3s
+      // Check for updates automatically on app launch
       setTimeout(() => {
         autoUpdater.checkForUpdates(true);
-      }, 3000);
+      }, 800);
     }, 1200);
 
-    // Re-check permissions whenever user returns to the app from System Settings
+    // Re-check permissions and updates whenever user returns to the app
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this._checkPermissionsStatus();
         this.syncNativeData();
+        autoUpdater.checkForUpdates(true);
       }
     });
 

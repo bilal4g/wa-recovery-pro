@@ -64,68 +64,55 @@ class AutoUpdater {
 
       let updateInfo = null;
 
-      // 1. Try GitHub API for instant 0-second release delivery
+      // 1. Fetch raw GitHub version.json directly with cache-busting timestamp (instant & no rate limit)
       try {
-        const apiResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/version.json?t=${Date.now()}`, {
-          headers: { 'Accept': 'application/vnd.github.v3+json' }
-        });
-        if (apiResp.ok) {
-          const apiData = await apiResp.json();
-          if (apiData.content) {
-            const decoded = decodeURIComponent(escape(atob(apiData.content.replace(/\s/g, ''))));
-            updateInfo = JSON.parse(decoded);
-          }
+        const freshUrl = `${MANIFEST_URL}?t=${Date.now()}`;
+        const response = await fetch(freshUrl, { cache: 'no-store' });
+        if (response.ok) {
+          updateInfo = await response.json();
         }
       } catch (e) {}
 
-      // 2. Fallback to raw URL
+      // 2. Fallback to GitHub API
       if (!updateInfo) {
         try {
-          const freshUrl = `${MANIFEST_URL}?t=${Date.now()}`;
-          const response = await fetch(freshUrl, { cache: 'no-store' });
-          if (response.ok) {
-            updateInfo = await response.json();
+          const apiResp = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/contents/version.json?t=${Date.now()}`, {
+            headers: { 'Accept': 'application/vnd.github.v3+json' }
+          });
+          if (apiResp.ok) {
+            const apiData = await apiResp.json();
+            if (apiData.content) {
+              const decoded = decodeURIComponent(escape(atob(apiData.content.replace(/\s/g, ''))));
+              updateInfo = JSON.parse(decoded);
+            }
           }
         } catch (e) {}
       }
 
       if (!updateInfo) {
-        try {
-          const localResp = await fetch('/version.json');
-          if (localResp.ok) updateInfo = await localResp.json();
-        } catch (e) {}
-      }
-
-      if (!updateInfo) {
-        updateInfo = {
-          version: '1.2.0',
-          build: 3,
-          releaseDate: '2026-08-21',
-          title: 'WA Recovery Pro v1.2.0 Available!',
-          changelog: [
-            '✨ One-Tap In-App APK Reinstall & Auto-Updater',
-            '⚡ Live background voice extraction speed boost',
-            '🔊 Enhanced Audio Pitch Filters (Deep Voice, Chipmunk)',
-            '🛡️ 100% Isolated Private Cache with 0-risk cleaner',
-            '🚀 Android 14+ Notification Listener Performance Fixes'
-          ],
-          hasLivePatch: true,
-          patchSize: '280 KB',
-          apkUrl: 'https://github.com/' + GITHUB_REPO + '/releases/latest/download/WA-Recovery-Pro.apk',
-          minNativeVersion: '1.0.0'
-        };
+        if (!silent) {
+          showToast('Could not reach update server. Check your connection.', 'error');
+        }
+        return false;
       }
 
       this.latestRelease = updateInfo;
 
-      const isNewer = this._compareVersions(updateInfo.version, this.currentVersion) > 0;
+      const remoteVer = updateInfo.version || '1.0.0';
+      const remoteBuild = Number(updateInfo.build) || 0;
+      const localVer = CURRENT_VERSION;
+      const localBuild = Number(CURRENT_BUILD);
+
+      const verComparison = this._compareVersions(remoteVer, localVer);
+      const isNewer = verComparison > 0 || (verComparison === 0 && remoteBuild > localBuild);
 
       if (isNewer) {
+        console.log(`🚀 Newer version detected: v${remoteVer} (b${remoteBuild}) > local v${localVer} (b${localBuild})`);
         this.showUpdateModal(updateInfo);
         return true;
       } else {
         if (!silent) {
-          showToast(`You have the latest version (v${this.currentVersion})`, 'success');
+          showToast(`You have the latest version (v${CURRENT_VERSION})`, 'success');
         }
         return false;
       }
