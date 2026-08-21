@@ -1,13 +1,13 @@
 {
-  "version": "2.0.5",
-  "build": 43,
+  "version": "2.0.6",
+  "build": 44,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.5 — Instant Auto-Popup Updates on App Launch",
+  "title": "WA Recovery Pro v2.0.6 — Clickable Links & Zero-Overflow Message Bubbles",
   "changelog": [
-    "🚀 Auto-Popup Update Window: When a new version is published, the update modal pops up automatically upon opening the app",
-    "⚡ Direct GitHub Sync: Fast cache-busting version check with zero rate limits and instant release detection",
-    "🔢 Version & Build Detection: Automatically detects and notifies about both major versions and patch builds",
-    "🔘 Preserved Manual Check: 'Check for Updates' button in Settings remains available at all times"
+    "🔗 Clickable Web Links: Automatic URL detection with one-tap system browser opening and link badges",
+    "📐 Zero Bubble Overflow: Perfect word wrapping (word-break & overflow-wrap) prevents text leaking outside bubbles",
+    "📱 Responsive Text Clamping: Ensures long continuous strings and URLs stay cleanly confined inside chat cards",
+    "🚀 Instant Auto-Popup Update Engine: Seamless automatic update notifications on app launch"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

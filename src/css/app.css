@@ -882,13 +882,49 @@ body {
 
 /* Message Bubbles */
 .message-bubble {
-  max-width: 80%;
+  max-width: 85%;
   padding: 10px 14px;
   border-radius: var(--radius-lg);
   font-size: 14px;
   line-height: 1.5;
   position: relative;
   animation: bubbleIn 0.25s var(--ease-spring);
+  word-wrap: break-word;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+.message-text-wrap {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  max-width: 100%;
+}
+.message-link {
+  color: #38bdf8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  word-break: break-all;
+  overflow-wrap: anywhere;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  background: rgba(56, 189, 248, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+  max-width: 100%;
+}
+.message-link:hover {
+  background: rgba(56, 189, 248, 0.22);
+}
+.message-link .link-icon {
+  font-size: 13px;
+  color: #38bdf8;
+  flex-shrink: 0;
 }
 .message-bubble.received {
   align-self: flex-start;

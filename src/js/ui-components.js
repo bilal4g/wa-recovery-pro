@@ -39,6 +39,19 @@ export function formatFileSize(bytes) {
   return (bytes / 1073741824).toFixed(2) + ' GB';
 }
 
+export function formatMessageTextWithLinks(text) {
+  if (!text) return '';
+  const escaped = escapeHtml(text);
+  const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s]|www\.[^\s<]+[^<.,:;"')\]\s])/gi;
+  return escaped.replace(urlRegex, (url) => {
+    let href = url;
+    if (!href.startsWith('http://') && !href.startsWith('https://')) {
+      href = 'https://' + href;
+    }
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="message-link" onclick="event.stopPropagation(); window.open('${href}', '_system'); return false;"><span class="material-icons-round link-icon">open_in_new</span><span>${url}</span></a>`;
+  });
+}
+
 // ---- Avatar ----
 
 export function getInitials(name) {
@@ -171,7 +184,7 @@ export function renderMessageBubble(message) {
   }
 
   if (message.text && message.text !== '📷 Photo' && message.text !== 'photo') {
-    content += `<div>${escapeHtml(message.text)}</div>`;
+    content += `<div class="message-text-wrap">${formatMessageTextWithLinks(message.text)}</div>`;
   }
 
   if (message.type === 'voice') {
