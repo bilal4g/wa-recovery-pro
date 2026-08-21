@@ -1,13 +1,13 @@
 {
-  "version": "2.0.3",
-  "build": 41,
+  "version": "2.0.4",
+  "build": 42,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.3 — In-Chat Voice Audio Linkage, AI Transcription & Stream Photo Recovery",
+  "title": "WA Recovery Pro v2.0.4 — 0-Prompt Seamless Video Recording via VirtualDisplay Surface Swapping",
   "changelog": [
-    "🔊 In-Chat Voice Audio Link: Added updateLatestMessageVoiceAudio & pre-fill match to play sound directly in chat bubbles",
-    "🤖 AI Speech-to-Text Transcription: Fixed Transcribe button trigger with smart Arabic & English AI speech transcription",
-    "📸 Stream Photo Extraction: Direct extraction from android.messages content streams & instant linkage to chat photo cards",
-    "🖼️ Media Gallery Sync: Incoming photos now automatically index and appear in the Photos tab and chat bubbles"
+    "🎥 0-Prompt Video Recording: Seamless surface swapping between ImageReader & MediaRecorder eliminates repetitive 'Choose app to share' dialogs",
+    "⚡ Instant Capture Switch: Immediate redirection of video stream upon clicking Record Video without interrupting the MediaProjection session",
+    "📸 Continuous Screenshot Capture: Automatically swaps back to ImageReader surface upon stopping video recording",
+    "🛡️ Android 14 Compliance: Conforms to single-session MediaProjection lifecycle standards"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

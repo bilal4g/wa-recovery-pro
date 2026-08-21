@@ -91,7 +91,6 @@ public class FloatingAssistantService extends Service {
     // Video Recording & Screen Capture State
     private boolean isRecordingVideo = false;
     private MediaRecorder videoRecorder;
-    private VirtualDisplay videoVirtualDisplay;
     private long videoStartTime = 0;
     private String currentVideoPath;
 
@@ -902,11 +901,16 @@ public class FloatingAssistantService extends Service {
             stopVideoRecording();
         } else {
             if (menuCard != null) menuCard.setVisibility(View.GONE);
-            // On Android 14+, always request fresh permission to avoid SecurityException token reuse
-            Intent intent = new Intent(this, ScreenCaptureActivity.class);
-            intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(intent);
+            
+            // If MediaProjection is already active, start recording instantly with 0 prompts!
+            if (mediaProjection != null && persistentVirtualDisplay != null) {
+                startRealVideoRecording();
+            } else {
+                Intent intent = new Intent(this, ScreenCaptureActivity.class);
+                intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
+            }
         }
     }
 
@@ -915,12 +919,12 @@ public class FloatingAssistantService extends Service {
             ensureMediaProjection();
 
             if (mediaProjection == null) {
-                Toast.makeText(this, "Please grant screen recording permission", Toast.LENGTH_SHORT).show();
+                Intent intent = new Intent(this, ScreenCaptureActivity.class);
+                intent.putExtra(ScreenCaptureActivity.EXTRA_ACTION, ScreenCaptureActivity.ACTION_VIDEO);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(intent);
                 return;
             }
-
-            // Android 14+ requires only 1 active VirtualDisplay per token: pause persistent mirror
-            cleanupPersistentMirror();
 
             DisplayMetrics metrics = getResources().getDisplayMetrics();
             int screenW = metrics.widthPixels;
@@ -928,11 +932,8 @@ public class FloatingAssistantService extends Service {
             int density = metrics.densityDpi;
 
             // 16-pixel aligned dimensions for hardware H.264 encoder compatibility
-            int w = 720;
-            int h = (int) (((double) screenH / screenW) * w);
-            h = (h / 16) * 16;
-            if (h <= 0) h = 1280;
-            w = (w / 16) * 16;
+            int w = (screenW / 16) * 16;
+            int h = (screenH / 16) * 16;
 
             File dir = new File(getFilesDir(), "media_backup");
             if (!dir.exists()) dir.mkdirs();
@@ -950,12 +951,17 @@ public class FloatingAssistantService extends Service {
             videoRecorder.setVideoFrameRate(30);
             videoRecorder.prepare();
 
-            videoVirtualDisplay = mediaProjection.createVirtualDisplay(
-                    "WARecovery_Video",
-                    w, h, density,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    videoRecorder.getSurface(), null, timerHandler
-            );
+            // Seamless Surface Swap without tearing down MediaProjection session
+            if (persistentVirtualDisplay != null) {
+                persistentVirtualDisplay.setSurface(videoRecorder.getSurface());
+            } else {
+                persistentVirtualDisplay = mediaProjection.createVirtualDisplay(
+                        "WARecovery_Screen",
+                        w, h, density,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                        videoRecorder.getSurface(), null, timerHandler
+                );
+            }
 
             videoRecorder.start();
             isRecordingVideo = true;
@@ -1015,13 +1021,12 @@ public class FloatingAssistantService extends Service {
                 videoRecorder = null;
             }
 
-            if (videoVirtualDisplay != null) {
-                try { videoVirtualDisplay.release(); } catch (Exception ignored) {}
-                videoVirtualDisplay = null;
+            // Restore persistent mirror surface for instant screenshots
+            if (persistentVirtualDisplay != null && persistentImageReader != null) {
+                persistentVirtualDisplay.setSurface(persistentImageReader.getSurface());
+            } else {
+                initPersistentScreenMirror();
             }
-
-            // Restore persistent mirror for instant screenshots
-            initPersistentScreenMirror();
 
             long timestamp = System.currentTimeMillis();
             long durationSec = (System.currentTimeMillis() - videoStartTime) / 1000;
