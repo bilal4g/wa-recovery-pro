@@ -7,8 +7,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
 import android.os.Parcelable;
 import android.service.notification.NotificationListenerService;
 import android.service.notification.StatusBarNotification;
@@ -136,6 +134,7 @@ public class NotificationListener extends NotificationListenerService {
                         }
 
                         if (isDeletionNotification(bText)) {
+                            Log.d(TAG, "⚠️ Deletion detected in bundle from " + sender + ": " + bText);
                             dbHelper.markLatestMessageDeleted(sender);
                             notifyWebLayer("messageDeleted", sender);
                             continue;
@@ -144,19 +143,52 @@ public class NotificationListener extends NotificationListenerService {
                         if (isCallNotification(null, sender, bText)) continue;
 
                         String bType = detectMessageType(extras, bText);
+                        boolean bIsViewOnce = isViewOnceMessage(extras, bText);
+
+                        Bitmap bPic = extractBitmap(notification, extras);
+                        String bThumb = null;
+                        String bSavedPath = null;
+
+                        if (bPic != null) {
+                            bThumb = bitmapToBase64(bPic);
+                            bSavedPath = saveBitmapToFile(bPic, bTime);
+                        }
+
+                        // Store in messages table
                         dbHelper.insertMessage(
-                                contact,
+                                sender,
                                 bText,
                                 bType,
                                 bTime,
                                 "received",
                                 groupName,
                                 false,
-                                false,
-                                null,
-                                null,
+                                bIsViewOnce,
+                                bThumb,
+                                bSavedPath != null ? bSavedPath : bThumb,
                                 key + "_" + bTime
                         );
+
+                        // If media/photo, insert into media table and trigger crawlers
+                        if (bSavedPath != null || bThumb != null || "image".equals(bType) || bIsViewOnce) {
+                            dbHelper.insertMedia(
+                                    sender,
+                                    "image",
+                                    bSavedPath != null ? bSavedPath : bThumb,
+                                    "wa_photo_" + bTime + ".jpg",
+                                    bSavedPath != null ? new File(bSavedPath).length() : 0,
+                                    "image/jpeg",
+                                    bThumb,
+                                    bTime,
+                                    false
+                            );
+                            triggerMediaExtractionLadder(sender);
+                        }
+
+                        // If voice note, trigger VoiceExtractor
+                        if ("voice".equals(bType) || "audio".equals(bType)) {
+                            triggerVoiceExtractionLadder(sender);
+                        }
                     }
                 }
                 notifyWebLayer("newMessage", contact);
@@ -169,9 +201,8 @@ public class NotificationListener extends NotificationListenerService {
             }
 
             // 3. DELETION EVENT DETECTION
-            // WhatsApp updates the notification to "This message was deleted" / "تم حذف هذه الرسالة"
             if (isDeletionNotification(text)) {
-                Log.d(TAG, "⚠️ Deletion event detected from " + contact + "!");
+                Log.d(TAG, "⚠️ Deletion event detected from " + contact + ": " + text);
                 dbHelper.markLatestMessageDeleted(contact);
                 notifyWebLayer("messageDeleted", contact);
                 return;
@@ -191,29 +222,7 @@ public class NotificationListener extends NotificationListenerService {
             if (picture != null) {
                 thumbnailBase64 = bitmapToBase64(picture);
                 type = "image";
-
-                try {
-                    File dir = new File(getFilesDir(), "media_backup");
-                    if (!dir.exists()) dir.mkdirs();
-                    File photoFile = new File(dir, "wa_photo_" + timestamp + ".jpg");
-                    FileOutputStream fos = new FileOutputStream(photoFile);
-                    picture.compress(Bitmap.CompressFormat.JPEG, 90, fos);
-                    fos.flush();
-                    fos.close();
-                    savedPhotoPath = photoFile.getAbsolutePath();
-
-                    // Save copy to Phone Gallery Pictures/WARecovery
-                    File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
-                    if (!pubDir.exists()) pubDir.mkdirs();
-                    File pubFile = new File(pubDir, "wa_photo_" + timestamp + ".jpg");
-                    FileOutputStream pubFos = new FileOutputStream(pubFile);
-                    picture.compress(Bitmap.CompressFormat.JPEG, 90, pubFos);
-                    pubFos.flush();
-                    pubFos.close();
-                    android.media.MediaScannerConnection.scanFile(this, new String[]{pubFile.getAbsolutePath()}, new String[]{"image/jpeg"}, null);
-                } catch (Exception e) {
-                    Log.e(TAG, "Error saving notification photo to file", e);
-                }
+                savedPhotoPath = saveBitmapToFile(picture, timestamp);
             }
 
             // If photo or view-once or thumbnail exists, register in media table
@@ -231,6 +240,7 @@ public class NotificationListener extends NotificationListenerService {
                         false
                 );
                 notifyWebLayer("mediaRecovered", contact);
+                triggerMediaExtractionLadder(contact);
             }
 
             // Store message in database
@@ -248,30 +258,9 @@ public class NotificationListener extends NotificationListenerService {
                     key
             );
 
-            // Trigger proactive media scanning for incoming media files
-            if ("image".equals(type) || "video".equals(type) || "voice".equals(type) || "audio".equals(type)) {
-                if (mediaScanner != null) {
-                    mediaScanner.triggerOnDemandScan();
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (mediaScanner != null) mediaScanner.triggerOnDemandScan();
-                    }, 600);
-                }
-            }
-
             // If voice note, extract incoming .opus audio file immediately
             if ("voice".equals(type) || "audio".equals(type)) {
-                final String voiceContact = contact;
-                new Thread(() -> {
-                    try {
-                        VoiceExtractor extractor = new VoiceExtractor(this);
-                        String vPath = extractor.extractLatestVoiceForContact(voiceContact);
-                        if (vPath == null) {
-                            Thread.sleep(1200);
-                            extractor.extractLatestVoiceForContact(voiceContact);
-                        }
-                        notifyWebLayer("newMessage", voiceContact);
-                    } catch (Exception ignored) {}
-                }).start();
+                triggerVoiceExtractionLadder(contact);
             }
 
             Log.d(TAG, "Captured message from " + contact + " [" + type + "]: " + text);
@@ -280,6 +269,64 @@ public class NotificationListener extends NotificationListenerService {
         } catch (Exception e) {
             Log.e(TAG, "Error processing notification", e);
         }
+    }
+
+    private String saveBitmapToFile(Bitmap picture, long timestamp) {
+        try {
+            File dir = new File(getFilesDir(), "media_backup");
+            if (!dir.exists()) dir.mkdirs();
+            File photoFile = new File(dir, "wa_photo_" + timestamp + ".jpg");
+            FileOutputStream fos = new FileOutputStream(photoFile);
+            picture.compress(Bitmap.CompressFormat.JPEG, 90, fos);
+            fos.flush();
+            fos.close();
+
+            // Save copy to Phone Gallery Pictures/WARecovery
+            File pubDir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "WARecovery");
+            if (!pubDir.exists()) pubDir.mkdirs();
+            File pubFile = new File(pubDir, "wa_photo_" + timestamp + ".jpg");
+            FileOutputStream pubFos = new FileOutputStream(pubFile);
+            picture.compress(Bitmap.CompressFormat.JPEG, 90, pubFos);
+            pubFos.flush();
+            pubFos.close();
+            android.media.MediaScannerConnection.scanFile(this, new String[]{pubFile.getAbsolutePath()}, new String[]{"image/jpeg"}, null);
+            return photoFile.getAbsolutePath();
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving photo to file", e);
+            return null;
+        }
+    }
+
+    private void triggerMediaExtractionLadder(final String contact) {
+        new Thread(() -> {
+            try {
+                ImageExtractor imgExt = new ImageExtractor(this);
+                if (imgExt.extractLatestImageForContact(contact) == null) {
+                    Thread.sleep(1200);
+                    if (imgExt.extractLatestImageForContact(contact) == null) {
+                        Thread.sleep(3000);
+                        imgExt.extractLatestImageForContact(contact);
+                    }
+                }
+                if (mediaScanner != null) mediaScanner.triggerOnDemandScan();
+            } catch (Exception ignored) {}
+        }).start();
+    }
+
+    private void triggerVoiceExtractionLadder(final String contact) {
+        new Thread(() -> {
+            try {
+                VoiceExtractor extractor = new VoiceExtractor(this);
+                if (extractor.extractLatestVoiceForContact(contact) == null) {
+                    Thread.sleep(1200);
+                    if (extractor.extractLatestVoiceForContact(contact) == null) {
+                        Thread.sleep(3000);
+                        extractor.extractLatestVoiceForContact(contact);
+                    }
+                }
+                notifyWebLayer("newMessage", contact);
+            } catch (Exception ignored) {}
+        }).start();
     }
 
     /**
@@ -323,20 +370,22 @@ public class NotificationListener extends NotificationListenerService {
     }
 
     private boolean isDeletionNotification(String text) {
-        if (text == null) return false;
+        if (text == null || text.trim().isEmpty()) return false;
         String lower = text.toLowerCase().trim().replaceAll("[.!?]+$", "").trim();
-        return lower.equals("this message was deleted") ||
-               lower.equals("message was deleted") ||
-               lower.equals("you deleted this message") ||
-               lower.equals("deleted this message") ||
-               lower.equals("تم حذف هذه الرسالة") ||
-               lower.equals("تم مسح هذه الرسالة") ||
-               lower.equals("تم إلغاء إرسال هذه الرسالة") ||
-               lower.equals("تم إلغاء إرسال") ||
-               lower.equals("ce message a été supprimé") ||
-               lower.equals("este mensaje fue eliminado") ||
-               lower.equals("diese nachricht wurde gelöscht") ||
-               lower.equals("bu mesaj silindi");
+        return lower.contains("message was deleted") ||
+               lower.contains("this message was deleted") ||
+               lower.contains("deleted this message") ||
+               lower.contains("message deleted") ||
+               lower.contains("you deleted this message") ||
+               lower.contains("تم حذف") ||
+               lower.contains("حذف هذه الرسالة") ||
+               lower.contains("حذف هذه الرساله") ||
+               lower.contains("تم مسح") ||
+               lower.contains("تم إلغاء إرسال") ||
+               lower.contains("supprimé") ||
+               lower.contains("eliminado") ||
+               lower.contains("gelöscht") ||
+               lower.contains("silindi");
     }
 
     private String detectMessageType(Bundle extras, String text) {

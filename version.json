@@ -1,13 +1,13 @@
 {
-  "version": "2.0.6",
-  "build": 44,
+  "version": "2.0.7",
+  "build": 45,
   "releaseDate": "2026-08-20",
-  "title": "WA Recovery Pro v2.0.6 — Clickable Links & Zero-Overflow Message Bubbles",
+  "title": "WA Recovery Pro v2.0.7 — Ultimate Media Recovery Crawler & Multi-Table Deletion Sync",
   "changelog": [
-    "🔗 Clickable Web Links: Automatic URL detection with one-tap system browser opening and link badges",
-    "📐 Zero Bubble Overflow: Perfect word wrapping (word-break & overflow-wrap) prevents text leaking outside bubbles",
-    "📱 Responsive Text Clamping: Ensures long continuous strings and URLs stay cleanly confined inside chat cards",
-    "🚀 Instant Auto-Popup Update Engine: Seamless automatic update notifications on app launch"
+    "📸 ImageExtractor Storage Crawler: Automatically grabs and backs up full-res WhatsApp photos & videos even without notification bitmaps",
+    "🗑️ Unified 3-Table Deletion Sync: Deleted voice notes, photos, and messages are now marked as Deleted across all tabs with fuzzy contact matching",
+    "🔍 Multi-Message Bundle Processing: Full media and voice extraction now runs on all incoming android.messages batches",
+    "🔊 5-Minute Robust Voice Window: Expanded VoiceExtractor timestamp thresholds to eliminate any missed voice notes"
   ],
   "hasLivePatch": false,
   "apkUrl": "https://raw.githubusercontent.com/bilal4g/wa-recovery-pro/main/WA-Recovery-Pro.apk",

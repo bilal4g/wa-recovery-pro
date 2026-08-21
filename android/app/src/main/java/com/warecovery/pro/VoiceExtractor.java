@@ -43,10 +43,8 @@ public class VoiceExtractor {
         this.backupDir = backupFile.getAbsolutePath();
     }
 
-    private static final long SERVICE_START_TIME = System.currentTimeMillis();
-
     /**
-     * Finds the newest .opus voice note on the device (created in real-time within last 60 seconds),
+     * Finds the newest .opus voice note on the device (created in real-time within last 5 minutes),
      * copies it into private app backup storage, and links it directly to the contact.
      */
     public String extractLatestVoiceForContact(String contact) {
@@ -68,18 +66,19 @@ public class VoiceExtractor {
         // Sort descending by lastModified (newest first)
         Collections.sort(allVoiceFiles, (f1, f2) -> Long.compare(f2.lastModified(), f1.lastModified()));
 
-        File newest = allVoiceFiles.get(0);
         long now = System.currentTimeMillis();
 
-        // ONLY capture if the voice file was created AFTER the service started (real-time only)
-        if (newest.lastModified() >= (SERVICE_START_TIME - 15000) && (now - newest.lastModified()) < 120000) {
-            String backupPath = backupVoiceFile(newest);
-            if (backupPath != null) {
-                int duration = getAudioDuration(newest);
-                dbHelper.insertVoiceNote(contact, backupPath, duration, System.currentTimeMillis(), false);
-                dbHelper.updateLatestMessageVoiceAudio(contact, backupPath);
-                Log.i(TAG, "✅ [Real-Time] Captured incoming voice note from " + contact + ": " + backupPath);
-                return backupPath;
+        for (File newest : allVoiceFiles) {
+            // Voice file created within the last 5 minutes (300,000 ms) and size > 0
+            if ((now - newest.lastModified()) < 300000 && newest.length() > 0) {
+                String backupPath = backupVoiceFile(newest);
+                if (backupPath != null) {
+                    int duration = getAudioDuration(newest);
+                    dbHelper.insertVoiceNote(contact, backupPath, duration, System.currentTimeMillis(), false);
+                    dbHelper.updateLatestMessageVoiceAudio(contact, backupPath);
+                    Log.i(TAG, "✅ [Real-Time] Captured incoming voice note from " + contact + ": " + backupPath);
+                    return backupPath;
+                }
             }
         }
 

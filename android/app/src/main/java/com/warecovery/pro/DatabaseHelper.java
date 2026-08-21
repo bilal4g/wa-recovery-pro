@@ -187,22 +187,45 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     /**
-     * Mark the most recent message from a contact as deleted when WhatsApp posts
+     * Mark the most recent message, voice note, and media item from a contact as deleted when WhatsApp posts
      * "This message was deleted" / "تم حذف هذه الرسالة"
      */
     public void markLatestMessageDeleted(String contact) {
-        if (contact == null || contact.isEmpty()) return;
+        if (contact == null || contact.trim().isEmpty()) return;
         SQLiteDatabase db = getWritableDatabase();
         try {
-            String sql = "UPDATE " + TABLE_MESSAGES + " SET " + COL_IS_DELETED + " = 1, "
-                    + COL_DELETED_AT + " = " + System.currentTimeMillis()
+            String clean = contact.trim();
+            long now = System.currentTimeMillis();
+
+            // 1. Mark latest message from this contact as deleted
+            String sqlMsg = "UPDATE " + TABLE_MESSAGES + " SET " + COL_IS_DELETED + " = 1, "
+                    + COL_DELETED_AT + " = " + now
                     + " WHERE " + COL_ID + " = ("
                     + "   SELECT " + COL_ID + " FROM " + TABLE_MESSAGES
-                    + "   WHERE " + COL_CONTACT + " = ? AND " + COL_IS_DELETED + " = 0"
+                    + "   WHERE (" + COL_CONTACT + " = ? OR " + COL_CONTACT + " LIKE ? OR ? LIKE '%' || " + COL_CONTACT + " || '%') AND " + COL_IS_DELETED + " = 0"
                     + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
                     + ")";
-            db.execSQL(sql, new Object[]{contact});
-            Log.d("WARecovery_DB", "Successfully marked latest message from " + contact + " as deleted!");
+            db.execSQL(sqlMsg, new Object[]{clean, "%" + clean + "%", clean});
+
+            // 2. Mark latest voice note from this contact as deleted
+            String sqlVoice = "UPDATE " + TABLE_VOICE_NOTES + " SET " + COL_IS_DELETED + " = 1"
+                    + " WHERE " + COL_ID + " = ("
+                    + "   SELECT " + COL_ID + " FROM " + TABLE_VOICE_NOTES
+                    + "   WHERE (" + COL_CONTACT + " = ? OR " + COL_CONTACT + " LIKE ? OR ? LIKE '%' || " + COL_CONTACT + " || '%') AND " + COL_IS_DELETED + " = 0"
+                    + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
+                    + ")";
+            db.execSQL(sqlVoice, new Object[]{clean, "%" + clean + "%", clean});
+
+            // 3. Mark latest media item from this contact as deleted
+            String sqlMedia = "UPDATE " + TABLE_MEDIA + " SET " + COL_IS_DELETED + " = 1"
+                    + " WHERE " + COL_ID + " = ("
+                    + "   SELECT " + COL_ID + " FROM " + TABLE_MEDIA
+                    + "   WHERE (" + COL_CONTACT + " = ? OR " + COL_CONTACT + " LIKE ? OR ? LIKE '%' || " + COL_CONTACT + " || '%') AND " + COL_IS_DELETED + " = 0"
+                    + "   ORDER BY " + COL_TIMESTAMP + " DESC LIMIT 1"
+                    + ")";
+            db.execSQL(sqlMedia, new Object[]{clean, "%" + clean + "%", clean});
+
+            Log.i("WARecovery_DB", "Successfully marked latest message/voice/media as deleted for: " + clean);
         } catch (Exception e) {
             Log.e("WARecovery_DB", "Error marking latest message deleted for " + contact, e);
         }
